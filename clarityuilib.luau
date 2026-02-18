@@ -583,7 +583,7 @@ function Library:CreateWindow(options)
     ResizeButton.BackgroundTransparency = 1
     ResizeButton.Position = UDim2.new(1, -20, 1, -20)
     ResizeButton.Size = UDim2.new(0, 20, 0, 20)
-    ResizeButton.Text = "◢"
+    ResizeButton.Text = "â—˘"
     ResizeButton.TextColor3 = Library.Theme.TextDark
     ResizeButton.TextSize = 14
     
@@ -908,45 +908,45 @@ function Library:CreateWindow(options)
         SlidersContainer.Visible = false
         SlidersContainer.ZIndex = 53
         
-        local r, g, b = default.R * 255, default.G * 255, default.B * 255
+        local h, s, v = default:ToHSV()
         
         local function UpdateColor()
-            local newColor = Color3.fromRGB(r, g, b)
+            local newColor = Color3.fromHSV(h, s, v)
             Preview.BackgroundColor3 = newColor
             callback(newColor)
         end
         
-        local function MakeSliderRow(label, yPos, initVal, setFunc)
+        local function CreateHSVSlider(name, yPos)
             local SliderBg = Instance.new("Frame")
             SliderBg.Parent = SlidersContainer
-            SliderBg.BackgroundColor3 = Library.Theme.Background
+            SliderBg.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
             SliderBg.Position = UDim2.new(0, 10, 0, yPos)
-            SliderBg.Size = UDim2.new(1, -20, 0, 15)
+            SliderBg.Size = UDim2.new(1, -20, 0, 12)
+            SliderBg.BorderSizePixel = 0
             SliderBg.ZIndex = 54
             
+            local Gradient = Instance.new("UIGradient")
+            Gradient.Parent = SliderBg
+            
             local SC2 = Instance.new("UICorner")
-            SC2.CornerRadius = UDim.new(0, 4)
+            SC2.CornerRadius = UDim.new(1, 0)
             SC2.Parent = SliderBg
             
-            local Fill2 = Instance.new("Frame")
-            Fill2.Parent = SliderBg
-            Fill2.BackgroundColor3 = Library.Theme.Accent
-            Fill2.Size = UDim2.new(initVal/255, 0, 1, 0)
-            Fill2.ZIndex = 55
+            local Knob = Instance.new("Frame")
+            Knob.Parent = SliderBg
+            Knob.BackgroundColor3 = Color3.new(1,1,1)
+            Knob.Size = UDim2.new(0, 16, 0, 16)
+            Knob.Position = UDim2.new(0, -8, 0.5, -8) 
+            Knob.ZIndex = 56
             
-            local FC2 = Instance.new("UICorner")
-            FC2.CornerRadius = UDim.new(0, 4)
-            FC2.Parent = Fill2
+            local KC = Instance.new("UICorner")
+            KC.CornerRadius = UDim.new(1, 0)
+            KC.Parent = Knob
             
-            local SL2 = Instance.new("TextLabel")
-            SL2.Parent = SliderBg
-            SL2.BackgroundTransparency = 1
-            SL2.Size = UDim2.new(1, 0, 1, 0)
-            SL2.Font = Enum.Font.GothamBold
-            SL2.Text = label
-            SL2.TextColor3 = Color3.new(1,1,1)
-            SL2.TextSize = 10
-            SL2.ZIndex = 56
+            local Stroke = Instance.new("UIStroke")
+            Stroke.Color = Color3.fromRGB(50,50,50)
+            Stroke.Thickness = 1
+            Stroke.Parent = Knob
             
             local Btn2 = Instance.new("TextButton")
             Btn2.Parent = SliderBg
@@ -957,38 +957,95 @@ function Library:CreateWindow(options)
             
             local dragging2 = false
             
+            local function Update(input)
+                local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
+                Knob.Position = UDim2.new(pos, -8, 0.5, -8)
+                return pos
+            end
+            
             Btn2.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     dragging2 = true
-                    local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
-                    Fill2.Size = UDim2.new(pos, 0, 1, 0)
-                    setFunc(math.floor(pos * 255))
+                    local val = Update(input)
+                    if name == "H" then h = val elseif name == "S" then s = val elseif name == "V" then v = val end
+                    UpdateColor()
                 end
             end)
             
             UserInputService.InputChanged:Connect(function(input)
                 if dragging2 and input.UserInputType == Enum.UserInputType.MouseMovement then
-                    local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
-                    Fill2.Size = UDim2.new(pos, 0, 1, 0)
-                    setFunc(math.floor(pos * 255))
+                    local val = Update(input)
+                    if name == "H" then h = val elseif name == "S" then s = val elseif name == "V" then v = val end
+                    UpdateColor()
                 end
             end)
             
             UserInputService.InputEnded:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging2 = false end
             end)
+            
+             return {
+                Set = function(val)
+                     Knob.Position = UDim2.new(val, -8, 0.5, -8)
+                end,
+                UpdateGradient = function(colorSeq)
+                    Gradient.Color = colorSeq
+                end
+            }
         end
         
-        MakeSliderRow("R", 0, r, function(val) r = val; UpdateColor() end)
-        MakeSliderRow("G", 22, g, function(val) g = val; UpdateColor() end)
-        MakeSliderRow("B", 44, b, function(val) b = val; UpdateColor() end)
+        -- HUE
+        local HueSlider = CreateHSVSlider("H", 0)
+        HueSlider.UpdateGradient(ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+            ColorSequenceKeypoint.new(0.167, Color3.fromRGB(255, 255, 0)),
+            ColorSequenceKeypoint.new(0.333, Color3.fromRGB(0, 255, 0)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+            ColorSequenceKeypoint.new(0.667, Color3.fromRGB(0, 0, 255)),
+            ColorSequenceKeypoint.new(0.833, Color3.fromRGB(255, 0, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+        })
+        
+        -- SATURATION
+        local SatSlider = CreateHSVSlider("S", 25)
+        
+        -- VALUE
+        local ValSlider = CreateHSVSlider("V", 50)
+        
+        -- Logic to update gradients dynamically
+        local function UpdateGradients()
+            local pureHue = Color3.fromHSV(h, 1, 1)
+            SatSlider.UpdateGradient(ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.new(1,1,1)),
+                ColorSequenceKeypoint.new(1, pureHue)
+            })
+            
+            local currentHueSat = Color3.fromHSV(h, s, 1)
+            ValSlider.UpdateGradient(ColorSequence.new{
+                 ColorSequenceKeypoint.new(0, Color3.new(0,0,0)),
+                 ColorSequenceKeypoint.new(1, currentHueSat)
+            })
+        end
+        
+        -- Hook UpdateGradients
+        local _oldUpdate = UpdateColor
+        UpdateColor = function()
+            _oldUpdate()
+            UpdateGradients()
+        end
+        
+        -- Init
+        HueSlider.Set(h)
+        SatSlider.Set(s)
+        ValSlider.Set(v)
+        UpdateGradients()
         
         local cpOpen = false
         ToggleBtn.MouseButton1Click:Connect(function()
             cpOpen = not cpOpen
             if cpOpen then
                 SlidersContainer.Visible = true
-                Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 120)})
+                Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 115)})
             else
                 Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 35)})
                 task.delay(0.3, function() SlidersContainer.Visible = false end)
@@ -1491,7 +1548,7 @@ function Library:CreateWindow(options)
             ListFrame.Parent = DropdownFrame
             ListFrame.BackgroundColor3 = Library.Theme.Container
             ListFrame.BorderSizePixel = 0
-            ListFrame.Position = UDim2.new(0, 0, 1, 5)
+            ListFrame.Position = UDim2.new(0, 0, 1, 2) -- Adjusted for tighter fit
             ListFrame.Size = UDim2.new(1, 0, 0, 0)
             ListFrame.Visible = false
             ListFrame.ZIndex = 10000 -- Force top
@@ -1500,6 +1557,11 @@ function Library:CreateWindow(options)
             local ListCorner = Instance.new("UICorner")
             ListCorner.CornerRadius = UDim.new(0, 4)
             ListCorner.Parent = ListFrame
+            
+            local ListStroke = Instance.new("UIStroke")
+            ListStroke.Color = Library.Theme.Outline
+            ListStroke.Thickness = 1
+            ListStroke.Parent = ListFrame
             
             local SearchBar = Instance.new("TextBox")
             SearchBar.Parent = ListFrame
@@ -1743,93 +1805,148 @@ function Library:CreateWindow(options)
             Container.Parent = PickerFrame
             Container.BackgroundTransparency = 1
             Container.Position = UDim2.new(0, 0, 0, 40)
-            Container.Size = UDim2.new(1, 0, 0, 100)
+            Container.Size = UDim2.new(1, 0, 0, 90) -- Slightly smaller vertical space
             Container.Visible = false
             
-            local function CreateRGBSlider(name, yPos, colorComponent, updateFunc)
+            local h, s, v = Default:ToHSV()
+            
+            local function UpdateColor()
+                local newColor = Color3.fromHSV(h, s, v)
+                ColorPreview.BackgroundColor3 = newColor
+                Library.Flags[Flag] = newColor
+                Callback(newColor)
+            end
+            
+            local function CreateHSVSlider(name, yPos, gradientColorKey)
                 local SliderBg = Instance.new("Frame")
                 SliderBg.Parent = Container
-                SliderBg.BackgroundColor3 = Library.Theme.Background
+                SliderBg.BackgroundColor3 = Color3.fromRGB(200, 200, 200) -- Fallback
                 SliderBg.Position = UDim2.new(0, 10, 0, yPos)
-                SliderBg.Size = UDim2.new(1, -20, 0, 15)
+                SliderBg.Size = UDim2.new(1, -20, 0, 12)
+                SliderBg.BorderSizePixel = 0
+                
+                local Gradient = Instance.new("UIGradient")
+                Gradient.Parent = SliderBg
                 
                 local SC = Instance.new("UICorner")
-                SC.CornerRadius = UDim.new(0, 4)
+                SC.CornerRadius = UDim.new(1, 0)
                 SC.Parent = SliderBg
                 
-                local Fill = Instance.new("Frame")
-                Fill.Parent = SliderBg
-                Fill.BackgroundColor3 = Library.Theme.Accent
-                Fill.Size = UDim2.new(colorComponent/255, 0, 1, 0)
+                local Knob = Instance.new("Frame")
+                Knob.Parent = SliderBg
+                Knob.BackgroundColor3 = Color3.new(1,1,1)
+                Knob.Size = UDim2.new(0, 16, 0, 16)
+                Knob.Position = UDim2.new(0, -8, 0.5, -8) -- Centered vertically
+                Knob.ZIndex = 2
                 
-                local FC = Instance.new("UICorner")
-                FC.CornerRadius = UDim.new(0, 4)
-                FC.Parent = Fill
+                local KC = Instance.new("UICorner")
+                KC.CornerRadius = UDim.new(1, 0)
+                KC.Parent = Knob
                 
-                local SLabel = Instance.new("TextLabel")
-                SLabel.Parent = SliderBg
-                SLabel.BackgroundTransparency = 1
-                SLabel.Size = UDim2.new(1, 0, 1, 0)
-                SLabel.Font = Enum.Font.GothamBold
-                SLabel.Text = name
-                SLabel.TextColor3 = Color3.new(1,1,1)
-                SLabel.TextSize = 10
-                SLabel.ZIndex = 2
+                local Stroke = Instance.new("UIStroke")
+                Stroke.Color = Color3.fromRGB(50,50,50)
+                Stroke.Thickness = 1
+                Stroke.Parent = Knob
                 
                 local Button = Instance.new("TextButton")
                 Button.Parent = SliderBg
                 Button.BackgroundTransparency = 1
                 Button.Size = UDim2.new(1, 0, 1, 0)
                 Button.Text = ""
+                Button.ZIndex = 3
                 
                 local dragging = false
                 
                 local function Update(input)
                     local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
-                    Fill.Size = UDim2.new(pos, 0, 1, 0)
-                    updateFunc(math.floor(pos * 255))
+                    Knob.Position = UDim2.new(pos, -8, 0.5, -8)
+                    return pos
                 end
                 
                 Button.InputBegan:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 then
                         dragging = true
-                        Update(input)
+                        local val = Update(input)
+                        if name == "H" then h = val elseif name == "S" then s = val elseif name == "V" then v = val end
+                        UpdateColor()
                     end
                 end)
                 
                 UserInputService.InputChanged:Connect(function(input)
-                    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                        Update(input)
-                    end
+                     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                        local val = Update(input)
+                        if name == "H" then h = val elseif name == "S" then s = val elseif name == "V" then v = val end
+                        UpdateColor()
+                     end
                 end)
                 
-                UserInputService.InputEnded:Connect(function(input)
+                 UserInputService.InputEnded:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
                 end)
                 
-                return function(val)
-                    Fill.Size = UDim2.new(val/255, 0, 1, 0)
-                end
+                return {
+                    Set = function(val)
+                         Knob.Position = UDim2.new(val, -8, 0.5, -8)
+                    end,
+                    UpdateGradient = function(colorSeq)
+                        Gradient.Color = colorSeq
+                    end
+                }
             end
             
-            local r, g, b = Default.R * 255, Default.G * 255, Default.B * 255
+            -- HUE
+            local HueSlider = CreateHSVSlider("H", 0)
+            HueSlider.UpdateGradient(ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(0.167, Color3.fromRGB(255, 255, 0)),
+                ColorSequenceKeypoint.new(0.333, Color3.fromRGB(0, 255, 0)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+                ColorSequenceKeypoint.new(0.667, Color3.fromRGB(0, 0, 255)),
+                ColorSequenceKeypoint.new(0.833, Color3.fromRGB(255, 0, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+            })
             
-            local function UpdateColor()
-                local newColor = Color3.fromRGB(r, g, b)
-                ColorPreview.BackgroundColor3 = newColor
-                Library.Flags[Flag] = newColor
-                Callback(newColor)
+            -- SATURATION
+            local SatSlider = CreateHSVSlider("S", 25)
+            
+            -- VALUE
+            local ValSlider = CreateHSVSlider("V", 50)
+            
+            -- Logic to update gradients dynamically
+            local function UpdateGradients()
+                -- Saturation Gradient: White -> Pure Hue Color
+                local pureHue = Color3.fromHSV(h, 1, 1)
+                SatSlider.UpdateGradient(ColorSequence.new{
+                    ColorSequenceKeypoint.new(0, Color3.new(1,1,1)),
+                    ColorSequenceKeypoint.new(1, pureHue)
+                })
+                
+                -- Value Gradient: Black -> Current Hue/Sat Color
+                local currentHueSat = Color3.fromHSV(h, s, 1)
+                ValSlider.UpdateGradient(ColorSequence.new{
+                     ColorSequenceKeypoint.new(0, Color3.new(0,0,0)),
+                     ColorSequenceKeypoint.new(1, currentHueSat)
+                })
             end
             
-            local setR = CreateRGBSlider("R", 0, r, function(val) r = val; UpdateColor() end)
-            local setG = CreateRGBSlider("G", 25, g, function(val) g = val; UpdateColor() end)
-            local setB = CreateRGBSlider("B", 50, b, function(val) b = val; UpdateColor() end)
+            -- Hook UpdateGradients into the main loop
+            local _oldUpdate = UpdateColor
+            UpdateColor = function()
+                _oldUpdate()
+                UpdateGradients()
+            end
+            
+            -- Init
+            HueSlider.Set(h)
+            SatSlider.Set(s)
+            ValSlider.Set(v)
+            UpdateGradients()
             
             local Open = false
             ToggleButton.MouseButton1Click:Connect(function()
                 Open = not Open
                 if Open then
-                     Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 130)})
+                     Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 115)}) -- 35 + 80ish
                      Container.Visible = true
                 else
                      Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 35)})
@@ -1839,8 +1956,10 @@ function Library:CreateWindow(options)
             
             Library.Elements[Flag] = {
                 Set = function(val)
-                     r, g, b = val.R * 255, val.G * 255, val.B * 255
-                     setR(r); setG(g); setB(b)
+                     h, s, v = val:ToHSV()
+                     HueSlider.Set(h)
+                     SatSlider.Set(s)
+                     ValSlider.Set(v)
                      UpdateColor()
                 end
             }
