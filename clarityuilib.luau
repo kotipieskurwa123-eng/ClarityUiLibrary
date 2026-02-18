@@ -98,6 +98,14 @@ function Library:PlaySound(id, volume)
 end
 
 --// Protected GUI
+-- Singleton Pattern: Remove existing UI if present to prevent stacking
+if CoreGui:FindFirstChild("ClarityUI") then
+    CoreGui.ClarityUI:Destroy()
+end
+if Players.LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ClarityUI") then
+    Players.LocalPlayer.PlayerGui.ClarityUI:Destroy()
+end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ClarityUI"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
@@ -271,6 +279,7 @@ function Library:CreateWatermark(scriptName)
     Label.Position = UDim2.new(0, 10, 0, 0)
     Label.Size = UDim2.new(1, -20, 1, 0)
     Label.Font = Enum.Font.Gotham
+    Label.Text = ""
     Label.TextColor3 = Library.Theme.Text
     Label.TextSize = 12
     Label.TextXAlignment = Enum.TextXAlignment.Left
@@ -280,11 +289,11 @@ function Library:CreateWatermark(scriptName)
     
     -- Update Loop
     Library:BindConnection(RunService.RenderStepped:Connect(function()
+         if not Watermark.Parent then return end -- Safety check
+         
          local fps = math.floor(workspace:GetRealPhysicsFPS())
          local ping = 0 
          if game:GetService("Stats"):FindFirstChild("PerformanceStats") then
-             -- Approximate ping if available or just placeholder
-             -- Real ping is hard to get reliably without remote events, usually just use 0 or fake it
              ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
          end
          
@@ -542,8 +551,8 @@ function Library:CreateWindow(options)
     ResizeButton.Name = "Resize"
     ResizeButton.Parent = MainFrame
     ResizeButton.BackgroundTransparency = 1
-    ResizeButton.Position = UDim2.new(1, -15, 1, -15)
-    ResizeButton.Size = UDim2.new(0, 15, 0, 15)
+    ResizeButton.Position = UDim2.new(1, -20, 1, -20)
+    ResizeButton.Size = UDim2.new(0, 20, 0, 20)
     ResizeButton.Text = "◢"
     ResizeButton.TextColor3 = Library.Theme.TextDark
     ResizeButton.TextSize = 14
