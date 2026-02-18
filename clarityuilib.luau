@@ -4,6 +4,7 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
 
 local Library = {}
 Library.Flags = {}
@@ -11,7 +12,8 @@ Library.Elements = {}
 Library.Connections = {}
 Library.Settings = {
     LowPerformance = false,
-    UIKey = Enum.KeyCode.RightControl
+    UIKey = Enum.KeyCode.RightControl,
+    RainbowAccent = false
 }
 Library.ZIndex = 1
 Library.NotificationQueue = {}
@@ -38,7 +40,26 @@ function Library:Cleanup()
     for _, conn in ipairs(Library.Connections) do
         if conn then conn:Disconnect() end
     end
+    -- Cleanup Acrylic if exists
+    if Library.Acrylic then Library.Acrylic:Destroy() end
     Library.Connections = {}
+end
+
+function Library:SetRainbow(state)
+    Library.Settings.RainbowAccent = state
+    if state then
+        task.spawn(function()
+            while Library.Settings.RainbowAccent do
+                local hue = tick() % 5 / 5
+                local color = Color3.fromHSV(hue, 1, 1)
+                Library.Theme.Accent = color
+                -- Ideally trigger a repaint or use property binding, 
+                -- for now this only affects NEW elements or needs manual refresh hooks.
+                -- A real system would use a signal.
+                task.wait()
+            end
+        end)
+    end
 end
 
 local ActiveTweens = {}
@@ -224,6 +245,56 @@ local function EnableDragging(frame, dragHandle)
     end))
 end
 
+--// Watermark Feature
+function Library:CreateWatermark(scriptName)
+    local Watermark = Instance.new("Frame")
+    Watermark.Name = "Watermark"
+    Watermark.Parent = ScreenGui
+    Watermark.BackgroundColor3 = Library.Theme.Header
+    Watermark.Position = UDim2.new(1, -220, 0, 20) -- Top Right default
+    Watermark.Size = UDim2.new(0, 200, 0, 30)
+    Watermark.AutomaticSize = Enum.AutomaticSize.X
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 4)
+    Corner.Parent = Watermark
+    
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Library.Theme.Outline
+    Stroke.Thickness = 1
+    Stroke.Parent = Watermark
+    
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Watermark
+    Label.BackgroundTransparency = 1
+    Label.Position = UDim2.new(0, 10, 0, 0)
+    Label.Size = UDim2.new(1, -20, 1, 0)
+    Label.Font = Enum.Font.Gotham
+    Label.TextColor3 = Library.Theme.Text
+    Label.TextSize = 12
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Dragging for Watermark
+    EnableDragging(Watermark, Watermark)
+    
+    -- Update Loop
+    Library:BindConnection(RunService.RenderStepped:Connect(function()
+         local fps = math.floor(workspace:GetRealPhysicsFPS())
+         local ping = 0 
+         if game:GetService("Stats"):FindFirstChild("PerformanceStats") then
+             -- Approximate ping if available or just placeholder
+             -- Real ping is hard to get reliably without remote events, usually just use 0 or fake it
+             ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+         end
+         
+         local name = Players.LocalPlayer.DisplayName
+         Label.Text = string.format("%s | FPS: %d | PING: %d | User: %s", scriptName, fps, ping, name)
+    end))
+    
+    return Watermark
+end
+
+
 --// Notification System
 local NotificationContainer = Instance.new("Frame")
 NotificationContainer.Name = "Notifications"
@@ -244,7 +315,6 @@ function Library:ProcessNotificationQueue()
     Library.IsNotificationActive = true
     
     local options = table.remove(Library.NotificationQueue, 1)
-    
     local Title = options.Title or "Notification"
     local Text = options.Text or "Text"
     local Duration = options.Duration or 3
@@ -342,7 +412,6 @@ function Library:ProcessNotificationQueue()
     
     task.delay(Duration, Close)
     
-    -- Small delay before processing next instant one to avoid instant stack
     task.delay(0.5, function()
          Library.IsNotificationActive = false
          Library:ProcessNotificationQueue()
@@ -356,10 +425,7 @@ function Library:Notify(options)
     end
 end
 
---// Message/Modal System (Alert)
--- Can trigger a modal dialog
-
---// Config System (Robust)
+--// Config System
 function Library:SaveConfig(name)
     local folder = "Clarity/Configs"
     if not isfolder("Clarity") then makefolder("Clarity") end
@@ -619,7 +685,6 @@ function Library:CreateWindow(options)
             local SectionCorner = Instance.new("UICorner")
             SectionCorner.Parent = SectionContainer
             
-             -- For simple section header
             local SectionLabel = Instance.new("TextLabel")
             SectionLabel.Name = "SectionHeader"
             SectionLabel.Parent = SectionContainer
@@ -630,9 +695,6 @@ function Library:CreateWindow(options)
             SectionLabel.TextColor3 = Library.Theme.Text
             SectionLabel.TextSize = 14
             SectionLabel.TextXAlignment = Enum.TextXAlignment.Left
-            
-            -- Collapsible Logic placeholder (User can add button to toggle children visibility)
-            -- For now, just a header.
         end
 
         function Tab:CreateLabel(text)
@@ -647,6 +709,19 @@ function Library:CreateWindow(options)
             Label.TextSize = 12
             Label.TextXAlignment = Enum.TextXAlignment.Left
             return Label
+        end
+
+        function Tab:CreateImage(options)
+            local ImageId = options.Image
+            local Size = options.Size or UDim2.new(0, 100, 0, 100)
+            
+            local ImageFrame = Instance.new("ImageLabel")
+            ImageFrame.Parent = TabPage
+            ImageFrame.BackgroundTransparency = 1
+            ImageFrame.Size = Size
+            ImageFrame.Image = "rbxassetid://" .. tostring(ImageId)
+            
+            return ImageFrame
         end
 
         function Tab:CreateButton(options)
@@ -782,7 +857,7 @@ function Library:CreateWindow(options)
             local Min = options.Min or 0
             local Max = options.Max or 100
             local Default = options.Default or Min
-            local Float = options.Float or 0 -- 0 decimals (int)
+            local Float = options.Float or 0 
             local Callback = options.Callback or function() end
             
             Library.Flags[Flag] = Default
@@ -832,7 +907,7 @@ function Library:CreateWindow(options)
             local SliderFill = Instance.new("Frame")
             SliderFill.Parent = SliderBar
             SliderFill.BackgroundColor3 = Library.Theme.Accent
-            local Range = math.max(Max - Min, 0.01) -- Avoid division by zero
+            local Range = math.max(Max - Min, 0.01) 
             
             local function Round(num)
                 if Float == 0 then return math.floor(num + 0.5) end
@@ -860,7 +935,6 @@ function Library:CreateWindow(options)
                 Callback(clamped)
             end
             
-             -- Initial Set
              SliderFill.Size = UDim2.new((Default - Min) / Range, 0, 1, 0)
              
              Library.Elements[Flag] = {
@@ -925,10 +999,6 @@ function Library:CreateWindow(options)
             DropdownFrame.BackgroundColor3 = Library.Theme.Container
             DropdownFrame.Size = UDim2.new(1, 0, 0, 35)
             DropdownFrame.ZIndex = CurrentZIndex
-            
-             -- Parent ListFrame to Overlay or ScreenGui to avoid Clipping
-            -- But we need it to follow position.
-            -- Using simple resizing logic inside frame for now, assuming user will turn off ClipsDescendants if needed.
             DropdownFrame.ClipsDescendants = false
             
             local DropdownCorner = Instance.new("UICorner")
@@ -960,7 +1030,7 @@ function Library:CreateWindow(options)
             DropdownButton.Size = UDim2.new(1, 0, 1, 0)
             DropdownButton.Text = ""
             
-            local ListFrame = Instance.new("Frame") -- Container for list + search
+            local ListFrame = Instance.new("Frame") 
             ListFrame.Parent = DropdownFrame
             ListFrame.BackgroundColor3 = Library.Theme.Container
             ListFrame.BorderSizePixel = 0
@@ -1153,7 +1223,7 @@ function Library:CreateWindow(options)
             }
         end
         
-        -- Other components (Textbox, ColorPicker, MultiDropdown) would follow similar optimized patterns
+        -- Other components (Textbox, ColorPicker, MultiDropdown)
         
         return Tab
     end
