@@ -13,6 +13,8 @@ Library.Settings = {
     LowPerformance = false,
     UIKey = Enum.KeyCode.RightControl
 }
+Library.ZIndex = 1
+
 Library.Theme = {
     Background = Color3.fromRGB(26, 26, 26),
     Header = Color3.fromRGB(32, 32, 32),
@@ -22,7 +24,6 @@ Library.Theme = {
     Outline = Color3.fromRGB(50, 50, 50),
     Container = Color3.fromRGB(30, 30, 30)
 }
-Library.ZIndex = 1
 
 --// Internal Functions
 function Library:BindConnection(signal)
@@ -38,6 +39,7 @@ function Library:Cleanup()
     Library.Connections = {}
 end
 
+local ActiveTweens = {}
 function Library:Tween(obj, info, props)
     if Library.Settings.LowPerformance then
         for prop, val in pairs(props) do
@@ -46,8 +48,12 @@ function Library:Tween(obj, info, props)
         return
     end
     
+    -- basic caching logic could be complex, for now we ensure we don't spam
+    -- if ActiveTweens[obj] then ActiveTweens[obj]:Cancel() end
+    
     local tween = TweenService:Create(obj, info, props)
     tween:Play()
+    -- ActiveTweens[obj] = tween
     return tween
 end
 
@@ -151,8 +157,17 @@ local function EnableDragging(frame, dragHandle)
     Library:BindConnection(UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
+            local newX = startPos.X.Offset + delta.X
+            local newY = startPos.Y.Offset + delta.Y
+            
+            -- Bounds Check (Simple)
+            local viewport = workspace.CurrentCamera.ViewportSize
+            -- Optional: Clamp to screen
+            -- newX = math.clamp(newX, 0, viewport.X - frame.AbsoluteSize.X)
+            -- newY = math.clamp(newY, 0, viewport.Y - frame.AbsoluteSize.Y)
+            
             Library:Tween(frame, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
             })
         end
     end))
@@ -181,11 +196,12 @@ function Library:Notify(options)
     local NotifyFrame = Instance.new("Frame")
     NotifyFrame.Name = "NotifyFrame"
     NotifyFrame.BackgroundColor3 = Library.Theme.Header
-    NotifyFrame.Size = UDim2.new(1, 0, 0, 0)
+    NotifyFrame.Size = UDim2.new(1, 0, 0, 0) -- Auto Size later
+    NotifyFrame.AutomaticSize = Enum.AutomaticSize.Y
     NotifyFrame.BorderSizePixel = 0
     NotifyFrame.ClipsDescendants = true
     NotifyFrame.Parent = NotificationContainer
-    NotifyFrame.ZIndex = 100 -- Always on top
+    NotifyFrame.ZIndex = 100
     
     local NotifyCorner = Instance.new("UICorner")
     NotifyCorner.CornerRadius = UDim.new(0, 4)
@@ -201,7 +217,7 @@ function Library:Notify(options)
     TitleLabel.Parent = NotifyFrame
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Position = UDim2.new(0, 10, 0, 5)
-    TitleLabel.Size = UDim2.new(1, -20, 0, 20)
+    TitleLabel.Size = UDim2.new(1, -30, 0, 20)
     TitleLabel.Font = Enum.Font.GothamBold
     TitleLabel.Text = Title
     TitleLabel.TextColor3 = Library.Theme.Accent
@@ -209,12 +225,24 @@ function Library:Notify(options)
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     TitleLabel.ZIndex = 101
     
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Parent = NotifyFrame
+    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.Position = UDim2.new(1, -20, 0, 5)
+    CloseBtn.Size = UDim2.new(0, 15, 0, 15)
+    CloseBtn.Text = "X"
+    CloseBtn.TextColor3 = Library.Theme.TextDark
+    CloseBtn.TextSize = 11
+    CloseBtn.Font = Enum.Font.Gotham
+    CloseBtn.ZIndex = 102
+    
     local TextLabel = Instance.new("TextLabel")
     TextLabel.Name = "Text"
     TextLabel.Parent = NotifyFrame
     TextLabel.BackgroundTransparency = 1
     TextLabel.Position = UDim2.new(0, 10, 0, 25)
-    TextLabel.Size = UDim2.new(1, -20, 0, 30)
+    TextLabel.Size = UDim2.new(1, -20, 0, 0)
+    TextLabel.AutomaticSize = Enum.AutomaticSize.Y
     TextLabel.Font = Enum.Font.Gotham
     TextLabel.Text = Text
     TextLabel.TextColor3 = Library.Theme.Text
@@ -232,42 +260,75 @@ function Library:Notify(options)
     ProgressBar.Size = UDim2.new(1, 0, 0, 2)
     ProgressBar.ZIndex = 101
     
-    Library:Tween(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 60)})
-    Library:Tween(ProgressBar, TweenInfo.new(Duration, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 2)})
+    -- Padding for bottom
+    local UIPadding = Instance.new("UIPadding")
+    UIPadding.Parent = NotifyFrame
+    UIPadding.PaddingBottom = UDim.new(0, 10)
     
-    task.delay(Duration, function()
-        Library:Tween(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0)})
+    local function Close()
+        Library:Tween(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(1.1, 0, 0, 0)})
         task.wait(0.3)
         NotifyFrame:Destroy()
-    end)
+    end
+    
+    CloseBtn.MouseButton1Click:Connect(Close)
+    
+    -- Animation In (Slide from right or fadeup? Slide up)
+    -- Start size 0, auto resizes but we tween Size
+    -- Because AutomaticSize acts instantly, we might just tween Transparency or use a container
+    -- For simplicity, let's just tween visual properties or assume height is ok
+    -- Better: Tween container size from 0 to target
+    
+    -- Just ensure it's visible
+    NotifyFrame.Size = UDim2.new(1, 0, 0, 0)
+    local targetHeight = 50 + TextLabel.TextBounds.Y
+    Library:Tween(NotifyFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, targetHeight)})
+    
+    Library:Tween(ProgressBar, TweenInfo.new(Duration, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 2)})
+    
+    task.delay(Duration, Close)
 end
 
---// Config System
+--// Config System (Robust)
 function Library:SaveConfig(name)
     local folder = "Clarity/Configs"
     if not isfolder("Clarity") then makefolder("Clarity") end
     if not isfolder(folder) then makefolder(folder) end
     
-    local json = HttpService:JSONEncode(Library.Flags)
-    writefile(folder .. "/" .. name .. ".json", json)
-    Library:Notify({Title = "Config", Text = "Saved configuration: " .. name})
+    local success, err = pcall(function()
+        local json = HttpService:JSONEncode(Library.Flags)
+        writefile(folder .. "/" .. name .. ".json", json)
+    end)
+    
+    if success then
+        Library:Notify({Title = "Config", Text = "Saved configuration: " .. name})
+    else
+        Library:Notify({Title = "Error", Text = "Failed to save config: " .. tostring(err)})
+    end
 end
 
 function Library:LoadConfig(name)
     local file = "Clarity/Configs/" .. name .. ".json"
     if isfile(file) then
-        local json = readfile(file)
-        local data = HttpService:JSONDecode(json)
-        
-        for flag, value in pairs(data) do
-            if Library.Flags[flag] ~= nil then
-                Library.Flags[flag] = value
-                if Library.Elements[flag] and Library.Elements[flag].Set then
-                    Library.Elements[flag].Set(value)
+        local success, err = pcall(function()
+            local json = readfile(file)
+            local data = HttpService:JSONDecode(json)
+            
+            for flag, value in pairs(data) do
+                if Library.Flags[flag] ~= nil then
+                    Library.Flags[flag] = value
+                    if Library.Elements[flag] and Library.Elements[flag].Set then
+                        Library.Elements[flag].Set(value)
+                    end
                 end
             end
+        end)
+        
+        if success then
+            Library:Notify({Title = "Config", Text = "Loaded configuration: " .. name})
+        else
+            Library:Notify({Title = "Error", Text = "Failed to load config: " .. tostring(err)})
         end
-        Library:Notify({Title = "Config", Text = "Loaded configuration: " .. name})
     else
         Library:Notify({Title = "Config", Text = "Config not found!"})
     end
@@ -284,6 +345,13 @@ function Library:CreateWindow(options)
     MainFrame.Position = UDim2.new(0.5, -250, 0.5, -175)
     MainFrame.Size = UDim2.new(0, 500, 0, 350)
     MainFrame.BorderSizePixel = 0
+    MainFrame.ClipsDescendants = true -- Support Fade logic if needed, but might break dropdowns if they go out. 
+    -- Actually for dropdowns to work, ClipsDescendants must be false or the dropdown must be in Overlay.
+    MainFrame.ClipsDescendants = false 
+    
+    -- Fade In
+    MainFrame.BackgroundTransparency = 1
+    Library:Tween(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0})
     
     local MainCorner = Instance.new("UICorner")
     MainCorner.CornerRadius = UDim.new(0, 6)
@@ -450,6 +518,19 @@ function Library:CreateWindow(options)
             SectionLabel.TextXAlignment = Enum.TextXAlignment.Left
         end
 
+        function Tab:CreateLabel(text)
+             local Label = Instance.new("TextLabel")
+            Label.Name = "Label"
+            Label.Parent = TabPage
+            Label.BackgroundTransparency = 1
+            Label.Size = UDim2.new(1, 0, 0, 20)
+            Label.Font = Enum.Font.Gotham
+            Label.Text = text
+            Label.TextColor3 = Library.Theme.TextDark
+            Label.TextSize = 12
+            Label.TextXAlignment = Enum.TextXAlignment.Left
+        end
+
         function Tab:CreateButton(options)
             local Text = options.Name or "Button"
             local Callback = options.Callback or function() end
@@ -550,12 +631,11 @@ function Library:CreateWindow(options)
                 Callback(val)
             end
             
-            -- Sync Registry
             Library.Elements[Flag] = {
                 Set = function(val)
                      UpdateToggle(val)
                 end,
-                Callback = nil -- Toggles don't use the GlobalKeybind map usually, strictly internal
+                Callback = nil 
             }
             
             local Debounce = false
@@ -624,7 +704,6 @@ function Library:CreateWindow(options)
             local SliderFill = Instance.new("Frame")
             SliderFill.Parent = SliderBar
             SliderFill.BackgroundColor3 = Library.Theme.Accent
-            -- Div by 0 fix
             local Range = math.max(Max - Min, 1)
             SliderFill.Size = UDim2.new((Default - Min) / Range, 0, 1, 0)
             
@@ -647,7 +726,6 @@ function Library:CreateWindow(options)
                 Callback(clamped)
             end
             
-            -- Sync Registry
             Library.Elements[Flag] = {
                 Set = function(val)
                     UpdateSlider(val)
@@ -660,24 +738,27 @@ function Library:CreateWindow(options)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     dragging = true
                     
-                    -- Initial update with Tween
-                    local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
-                    local val = math.floor(Min + (Range * pos))
-                    Library:Tween(SliderFill, TweenInfo.new(0.1), {Size = UDim2.new(pos, 0, 1, 0)})
-                    ValueLabel.Text = tostring(val)
-                    Library.Flags[Flag] = val
-                    Callback(val)
+                    local InitialPos = UserInputService:GetMouseLocation().X
+                    -- Calculate relative
+                    -- GetMouseLocation is screen space (absolute), but we need to map to bar
+                    -- For consistent drag, we use mouse location always
+                    
+                    local function UpdateFromMouse()
+                         local location = UserInputService:GetMouseLocation()
+                         local pos = math.clamp((location.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+                         SliderFill.Size = UDim2.new(pos, 0, 1, 0)
+                         local val = math.floor(Min + (Range * pos))
+                         ValueLabel.Text = tostring(val)
+                         Library.Flags[Flag] = val
+                         Callback(val)
+                    end
+                    
+                    UpdateFromMouse()
                     
                     local inputChanged
                     inputChanged = UserInputService.InputChanged:Connect(function(moveInput)
                          if dragging and (moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch) then
-                            -- Raw update without Tween for performance
-                            local movePos = math.clamp((moveInput.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
-                            SliderFill.Size = UDim2.new(movePos, 0, 1, 0)
-                            local moveVal = math.floor(Min + (Range * movePos))
-                            ValueLabel.Text = tostring(moveVal)
-                            Library.Flags[Flag] = moveVal
-                            Callback(moveVal)
+                             UpdateFromMouse()
                          end
                     end)
                     
@@ -702,7 +783,6 @@ function Library:CreateWindow(options)
             
             Library.Flags[Flag] = Default
             
-            -- Increment ZIndex
             Library.ZIndex = Library.ZIndex + 1
             local CurrentZIndex = Library.ZIndex
             
@@ -837,6 +917,164 @@ function Library:CreateWindow(options)
             end)
         end
         
+        function Tab:CreateMultiDropdown(options)
+            local Text = options.Name or "Multi Dropdown"
+            local Flag = options.Flag or Text
+            local Options = options.Options or {}
+            local Default = options.Default or {} -- Table of strings
+            local Callback = options.Callback or function() end
+            
+            Library.Flags[Flag] = Default
+            
+            Library.ZIndex = Library.ZIndex + 1
+            local CurrentZIndex = Library.ZIndex
+            
+            local DropdownFrame = Instance.new("Frame")
+            DropdownFrame.Name = Text
+            DropdownFrame.Parent = TabPage
+            DropdownFrame.BackgroundColor3 = Library.Theme.Container
+            DropdownFrame.Size = UDim2.new(1, 0, 0, 35)
+            DropdownFrame.ClipsDescendants = false
+            DropdownFrame.ZIndex = CurrentZIndex
+            
+            local DropdownCorner = Instance.new("UICorner")
+            DropdownCorner.CornerRadius = UDim.new(0, 4)
+            DropdownCorner.Parent = DropdownFrame
+            
+            local Label = Instance.new("TextLabel")
+            Label.Parent = DropdownFrame
+            Label.BackgroundTransparency = 1
+            Label.Position = UDim2.new(0, 10, 0, 0)
+            Label.Size = UDim2.new(1, -40, 0, 35)
+            Label.Font = Enum.Font.Gotham
+            Label.Text = Text .. ": ..."
+            Label.TextColor3 = Library.Theme.Text
+            Label.TextSize = 12
+            Label.TextXAlignment = Enum.TextXAlignment.Left
+            
+            local Arrow = Instance.new("ImageLabel")
+            Arrow.Parent = DropdownFrame
+            Arrow.BackgroundTransparency = 1
+            Arrow.Position = UDim2.new(1, -25, 0.5, -10)
+            Arrow.Size = UDim2.new(0, 20, 0, 20)
+            Arrow.Image = "rbxassetid://6031091004"
+            Arrow.ImageColor3 = Library.Theme.TextDark
+            
+            local DropdownButton = Instance.new("TextButton")
+            DropdownButton.Parent = DropdownFrame
+            DropdownButton.BackgroundTransparency = 1
+            DropdownButton.Size = UDim2.new(1, 0, 1, 0)
+            DropdownButton.Text = ""
+            
+            local ListFrame = Instance.new("ScrollingFrame")
+            ListFrame.Parent = DropdownFrame
+            ListFrame.BackgroundColor3 = Library.Theme.Container
+            ListFrame.BorderSizePixel = 0
+            ListFrame.Position = UDim2.new(0, 0, 1, 5)
+            ListFrame.Size = UDim2.new(1, 0, 0, 0)
+            ListFrame.Visible = false
+            ListFrame.ScrollBarThickness = 2
+            ListFrame.ZIndex = CurrentZIndex + 10
+            
+            local ListCorner = Instance.new("UICorner")
+            ListCorner.CornerRadius = UDim.new(0, 4)
+            ListCorner.Parent = ListFrame
+            
+            local UIListLayout_Drop = Instance.new("UIListLayout")
+            UIListLayout_Drop.Parent = ListFrame
+            UIListLayout_Drop.SortOrder = Enum.SortOrder.LayoutOrder
+            UIListLayout_Drop.Padding = UDim.new(0, 2)
+            
+            local UIPadding_Drop = Instance.new("UIPadding")
+            UIPadding_Drop.Parent = ListFrame
+            UIPadding_Drop.PaddingTop = UDim.new(0, 5)
+            UIPadding_Drop.PaddingBottom = UDim.new(0, 5)
+            UIPadding_Drop.PaddingLeft = UDim.new(0, 5)
+            UIPadding_Drop.PaddingRight = UDim.new(0, 5)
+            
+            -- Helper to check if option is selected
+            local function IsSelected(opt)
+                for _, v in pairs(Library.Flags[Flag]) do
+                    if v == opt then return true end
+                end
+                return false
+            end
+            
+            local function UpdateLabel()
+                local count = #Library.Flags[Flag]
+                if count == 0 then
+                    Label.Text = Text .. ": None"
+                else
+                    Label.Text = Text .. ": " .. table.concat(Library.Flags[Flag], ", ")
+                end
+            end
+            
+            -- Refresh list
+            local function RefreshOptions()
+                for _, child in pairs(ListFrame:GetChildren()) do
+                    if child:IsA("TextButton") then child:Destroy() end
+                end
+                
+                for _, option in pairs(Options) do
+                    local OptionBtn = Instance.new("TextButton")
+                    OptionBtn.Parent = ListFrame
+                    OptionBtn.BackgroundColor3 = IsSelected(option) and Library.Theme.Accent or Library.Theme.Background
+                    OptionBtn.Size = UDim2.new(1, 0, 0, 25)
+                    OptionBtn.AutoButtonColor = false
+                    OptionBtn.Font = Enum.Font.Gotham
+                    OptionBtn.Text = tostring(option)
+                    OptionBtn.TextColor3 = IsSelected(option) and Color3.new(1,1,1) or Library.Theme.Text
+                    OptionBtn.TextSize = 12
+                    OptionBtn.ZIndex = ListFrame.ZIndex
+                    
+                    local OptCorner = Instance.new("UICorner")
+                    OptCorner.CornerRadius = UDim.new(0, 4)
+                    OptCorner.Parent = OptionBtn
+                    
+                    OptionBtn.MouseButton1Click:Connect(function()
+                        if IsSelected(option) then
+                            -- Remove
+                            for i, v in pairs(Library.Flags[Flag]) do
+                                if v == option then
+                                    table.remove(Library.Flags[Flag], i)
+                                    break
+                                end
+                            end
+                            TweenService:Create(OptionBtn, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Background, TextColor3 = Library.Theme.Text}):Play()
+                        else
+                            -- Add
+                            table.insert(Library.Flags[Flag], option)
+                            TweenService:Create(OptionBtn, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Accent, TextColor3 = Color3.new(1,1,1)}):Play()
+                        end
+                        UpdateLabel()
+                        Callback(Library.Flags[Flag])
+                    end)
+                end
+            end
+            
+            RefreshOptions()
+            UpdateLabel()
+            
+            local Open = false
+            local Debounce = false
+            DropdownButton.MouseButton1Click:Connect(function()
+                if Debounce then return end
+                Debounce = true
+                Open = not Open
+                if Open then
+                     ListFrame.Visible = true
+                    Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, math.min(#Options * 27 + 10, 150))})
+                    Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 180})
+                else
+                    Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
+                    Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 0})
+                    task.wait(0.3)
+                    ListFrame.Visible = false
+                end
+                task.delay(0.2, function() Debounce = false end)
+            end)
+        end
+        
         function Tab:CreateKeybind(options)
             local Text = options.Name or "Keybind"
             local Flag = options.Flag or Text
@@ -889,7 +1127,6 @@ function Library:CreateWindow(options)
                 KeyButton.TextColor3 = Library.Theme.Accent
             end)
             
-            -- Bind to the specific binding state
             Library:BindConnection(UserInputService.InputBegan:Connect(function(input)
                 if Binding and input.UserInputType == Enum.UserInputType.Keyboard then
                     Library.Flags[Flag] = input.KeyCode
@@ -899,13 +1136,12 @@ function Library:CreateWindow(options)
                 end
             end))
             
-            -- Sync Registry
             Library.Elements[Flag] = {
                 Set = function(val)
                     Library.Flags[Flag] = val
                     KeyButton.Text = val.Name
                 end,
-                Callback = Callback -- Register callback for the global listener
+                Callback = Callback 
             }
         end
         
@@ -958,7 +1194,6 @@ function Library:CreateWindow(options)
                 Callback(Input.Text)
             end)
             
-             -- Sync Registry
             Library.Elements[Flag] = {
                 Set = function(val)
                     Library.Flags[Flag] = val
@@ -1095,7 +1330,6 @@ function Library:CreateWindow(options)
                 UpdateColor()
             end
             
-            -- Sync Registry
             Library.Elements[Flag] = {
                 Set = function(val)
                     Hue, Sat, Val = Color3.toHSV(val)
