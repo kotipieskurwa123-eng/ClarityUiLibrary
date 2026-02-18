@@ -1238,6 +1238,163 @@ function Library:CreateWindow(options)
             }
         end
         
+        function Tab:CreateColorPicker(options)
+            local Text = options.Name or "Color Picker"
+            local Flag = options.Flag or Text
+            local Default = options.Default or Color3.fromRGB(255, 255, 255)
+            local Callback = options.Callback or function() end
+            local TooltipText = options.Tooltip
+            
+            Library.Flags[Flag] = Default
+            
+            local PickerFrame = Instance.new("Frame")
+            PickerFrame.Name = Text
+            PickerFrame.Parent = TabPage
+            PickerFrame.BackgroundColor3 = Library.Theme.Container
+            PickerFrame.Size = UDim2.new(1, 0, 0, 35)
+            PickerFrame.ClipsDescendants = true
+            
+            local PickerCorner = Instance.new("UICorner")
+            PickerCorner.CornerRadius = UDim.new(0, 4)
+            PickerCorner.Parent = PickerFrame
+            
+            local Label = Instance.new("TextLabel")
+            Label.Parent = PickerFrame
+            Label.BackgroundTransparency = 1
+            Label.Position = UDim2.new(0, 10, 0, 0)
+            Label.Size = UDim2.new(1, -60, 0, 35)
+            Label.Font = Enum.Font.Gotham
+            Label.Text = Text
+            Label.TextColor3 = Library.Theme.Text
+            Label.TextSize = 12
+            Label.TextXAlignment = Enum.TextXAlignment.Left
+            
+            local ColorPreview = Instance.new("Frame")
+            ColorPreview.Parent = PickerFrame
+            ColorPreview.BackgroundColor3 = Default
+            ColorPreview.Position = UDim2.new(1, -45, 0.5, -10)
+            ColorPreview.Size = UDim2.new(0, 35, 0, 20)
+            
+            local PreviewCorner = Instance.new("UICorner")
+            PreviewCorner.CornerRadius = UDim.new(0, 4)
+            PreviewCorner.Parent = ColorPreview
+            
+            local ToggleButton = Instance.new("TextButton")
+            ToggleButton.Parent = PickerFrame
+            ToggleButton.BackgroundTransparency = 1
+            ToggleButton.Size = UDim2.new(1, 0, 0, 35)
+            ToggleButton.Text = ""
+            
+            if TooltipText then MakeTooltip(PickerFrame, TooltipText) end
+            
+            -- Sliders Container
+            local Container = Instance.new("Frame")
+            Container.Parent = PickerFrame
+            Container.BackgroundTransparency = 1
+            Container.Position = UDim2.new(0, 0, 0, 40)
+            Container.Size = UDim2.new(1, 0, 0, 100)
+            Container.Visible = false
+            
+            local function CreateRGBSlider(name, yPos, colorComponent, updateFunc)
+                local SliderBg = Instance.new("Frame")
+                SliderBg.Parent = Container
+                SliderBg.BackgroundColor3 = Library.Theme.Background
+                SliderBg.Position = UDim2.new(0, 10, 0, yPos)
+                SliderBg.Size = UDim2.new(1, -20, 0, 15)
+                
+                local SC = Instance.new("UICorner")
+                SC.CornerRadius = UDim.new(0, 4)
+                SC.Parent = SliderBg
+                
+                local Fill = Instance.new("Frame")
+                Fill.Parent = SliderBg
+                Fill.BackgroundColor3 = Library.Theme.Accent
+                Fill.Size = UDim2.new(colorComponent/255, 0, 1, 0)
+                
+                local FC = Instance.new("UICorner")
+                FC.CornerRadius = UDim.new(0, 4)
+                FC.Parent = Fill
+                
+                local SLabel = Instance.new("TextLabel")
+                SLabel.Parent = SliderBg
+                SLabel.BackgroundTransparency = 1
+                SLabel.Size = UDim2.new(1, 0, 1, 0)
+                SLabel.Font = Enum.Font.GothamBold
+                SLabel.Text = name
+                SLabel.TextColor3 = Color3.new(1,1,1)
+                SLabel.TextSize = 10
+                SLabel.ZIndex = 2
+                
+                local Button = Instance.new("TextButton")
+                Button.Parent = SliderBg
+                Button.BackgroundTransparency = 1
+                Button.Size = UDim2.new(1, 0, 1, 0)
+                Button.Text = ""
+                
+                local dragging = false
+                
+                local function Update(input)
+                    local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
+                    Fill.Size = UDim2.new(pos, 0, 1, 0)
+                    updateFunc(math.floor(pos * 255))
+                end
+                
+                Button.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        dragging = true
+                        Update(input)
+                    end
+                end)
+                
+                UserInputService.InputChanged:Connect(function(input)
+                    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                        Update(input)
+                    end
+                end)
+                
+                UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+                end)
+                
+                return function(val)
+                    Fill.Size = UDim2.new(val/255, 0, 1, 0)
+                end
+            end
+            
+            local r, g, b = Default.R * 255, Default.G * 255, Default.B * 255
+            
+            local function UpdateColor()
+                local newColor = Color3.fromRGB(r, g, b)
+                ColorPreview.BackgroundColor3 = newColor
+                Library.Flags[Flag] = newColor
+                Callback(newColor)
+            end
+            
+            local setR = CreateRGBSlider("R", 0, r, function(val) r = val; UpdateColor() end)
+            local setG = CreateRGBSlider("G", 25, g, function(val) g = val; UpdateColor() end)
+            local setB = CreateRGBSlider("B", 50, b, function(val) b = val; UpdateColor() end)
+            
+            local Open = false
+            ToggleButton.MouseButton1Click:Connect(function()
+                Open = not Open
+                if Open then
+                     Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 130)})
+                     Container.Visible = true
+                else
+                     Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 35)})
+                     Container.Visible = false
+                end
+            end)
+            
+            Library.Elements[Flag] = {
+                Set = function(val)
+                     r, g, b = val.R * 255, val.G * 255, val.B * 255
+                     setR(r); setG(g); setB(b)
+                     UpdateColor()
+                end
+            }
+        end
+        
         -- Other components (Textbox, ColorPicker, MultiDropdown)
         
         return Tab
