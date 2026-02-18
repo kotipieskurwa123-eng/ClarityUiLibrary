@@ -252,7 +252,8 @@ function Library:CreateWatermark(scriptName)
     Watermark.Parent = ScreenGui
     Watermark.BackgroundColor3 = Library.Theme.Header
     Watermark.Position = UDim2.new(1, -220, 0, 20) -- Top Right default
-    Watermark.Size = UDim2.new(0, 200, 0, 30)
+    -- Fix for Watermark Scaling
+    Watermark.Size = UDim2.new(0, 0, 0, 30) -- Let AutomaticSize handle width
     Watermark.AutomaticSize = Enum.AutomaticSize.X
     
     local Corner = Instance.new("UICorner")
@@ -990,15 +991,11 @@ function Library:CreateWindow(options)
             
             Library.Flags[Flag] = Default
             
-            Library.ZIndex = Library.ZIndex + 1
-            local CurrentZIndex = Library.ZIndex
-            
             local DropdownFrame = Instance.new("Frame")
             DropdownFrame.Name = Text
             DropdownFrame.Parent = TabPage
             DropdownFrame.BackgroundColor3 = Library.Theme.Container
             DropdownFrame.Size = UDim2.new(1, 0, 0, 35)
-            DropdownFrame.ZIndex = CurrentZIndex
             DropdownFrame.ClipsDescendants = false
             
             local DropdownCorner = Instance.new("UICorner")
@@ -1037,8 +1034,12 @@ function Library:CreateWindow(options)
             ListFrame.Position = UDim2.new(0, 0, 1, 5)
             ListFrame.Size = UDim2.new(1, 0, 0, 0)
             ListFrame.Visible = false
-            ListFrame.ZIndex = CurrentZIndex + 10 
+            ListFrame.ZIndex = 10000 -- Force top
             ListFrame.ClipsDescendants = true
+            
+            local ListCorner = Instance.new("UICorner")
+            ListCorner.CornerRadius = UDim.new(0, 4)
+            ListCorner.Parent = ListFrame
             
             local SearchBar = Instance.new("TextBox")
             SearchBar.Parent = ListFrame
@@ -1050,7 +1051,7 @@ function Library:CreateWindow(options)
             SearchBar.Text = ""
             SearchBar.TextColor3 = Library.Theme.Text
             SearchBar.TextSize = 12
-            SearchBar.ZIndex = CurrentZIndex + 12
+            SearchBar.ZIndex = 10002
             
             local SearchCorner = Instance.new("UICorner")
             SearchCorner.CornerRadius = UDim.new(0, 4)
@@ -1062,17 +1063,30 @@ function Library:CreateWindow(options)
             ScrollList.Position = UDim2.new(0, 0, 0, 30)
             ScrollList.Size = UDim2.new(1, 0, 1, -30)
             ScrollList.ScrollBarThickness = 2
-            ScrollList.ZIndex = CurrentZIndex + 11
+            ScrollList.ZIndex = 10001
             
             local UIListLayout_Drop = Instance.new("UIListLayout")
             UIListLayout_Drop.Parent = ScrollList
             UIListLayout_Drop.Padding = UDim.new(0, 2)
             
-            local ListCorner = Instance.new("UICorner")
-            ListCorner.CornerRadius = UDim.new(0, 4)
-            ListCorner.Parent = ListFrame
-            
-            local Open = false
+            local function Close()
+                Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
+                Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 0})
+                task.wait(0.3)
+                ListFrame.Visible = false
+            end
+
+            local function OpenList()
+                -- Close others
+                if Library.OpenedDropdown and Library.OpenedDropdown ~= Close then
+                    Library.OpenedDropdown()
+                end
+                Library.OpenedDropdown = Close
+                
+                ListFrame.Visible = true
+                Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 150)})
+                Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 180})
+            end
             
             local function RefreshOptions(filter)
                 for _, child in pairs(ScrollList:GetChildren()) do
@@ -1093,21 +1107,18 @@ function Library:CreateWindow(options)
                         OptionBtn.Text = tostring(option)
                         OptionBtn.TextColor3 = Library.Theme.Text
                         OptionBtn.TextSize = 12
-                        OptionBtn.ZIndex = ScrollList.ZIndex
+                        OptionBtn.ZIndex = 10003
                         
                         local OptCorner = Instance.new("UICorner")
                         OptCorner.CornerRadius = UDim.new(0, 4)
                         OptCorner.Parent = OptionBtn
                         
                         OptionBtn.MouseButton1Click:Connect(function()
-                            Open = false
                             Label.Text = Text .. ": " .. tostring(option)
                             Library.Flags[Flag] = option
                             Callback(option)
-                            Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
-                            Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 0})
-                            task.wait(0.3)
-                            ListFrame.Visible = false
+                            Close()
+                            Library.OpenedDropdown = nil
                         end)
                     end
                 end
@@ -1135,16 +1146,11 @@ function Library:CreateWindow(options)
             DropdownButton.MouseButton1Click:Connect(function()
                 if Debounce then return end
                 Debounce = true
-                Open = not Open
-                if Open then
-                    ListFrame.Visible = true
-                    Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 150)})
-                    Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 180})
+                if ListFrame.Visible then
+                    Close()
+                    Library.OpenedDropdown = nil
                 else
-                    Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
-                    Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 0})
-                    task.wait(0.3)
-                    ListFrame.Visible = false
+                    OpenList()
                 end
                 task.delay(0.2, function() Debounce = false end)
             end)
