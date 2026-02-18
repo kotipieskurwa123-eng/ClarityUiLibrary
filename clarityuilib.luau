@@ -529,23 +529,21 @@ function Library:CreateWindow(options)
     TitleLabel.TextSize = 14
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     
-    -- Settings Button
-    local SettingsButton = Instance.new("TextButton")
+    -- Settings Button (ImageButton with gear icon)
+    local SettingsButton = Instance.new("ImageButton")
     SettingsButton.Name = "Settings"
     SettingsButton.Parent = Header
     SettingsButton.BackgroundTransparency = 1
-    SettingsButton.Position = UDim2.new(1, -60, 0, 0)
-    SettingsButton.Size = UDim2.new(0, 30, 0, 30)
-    SettingsButton.Font = Enum.Font.Gotham
-    SettingsButton.Text = "⚙"
-    SettingsButton.TextColor3 = Library.Theme.TextDark
-    SettingsButton.TextSize = 16
+    SettingsButton.Position = UDim2.new(1, -60, 0, 3)
+    SettingsButton.Size = UDim2.new(0, 24, 0, 24)
+    SettingsButton.Image = "rbxassetid://6031280882"
+    SettingsButton.ImageColor3 = Library.Theme.TextDark
     
     SettingsButton.MouseEnter:Connect(function()
-        Library:Tween(SettingsButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.Accent})
+        Library:Tween(SettingsButton, TweenInfo.new(0.2), {ImageColor3 = Library.Theme.Accent})
     end)
     SettingsButton.MouseLeave:Connect(function()
-        Library:Tween(SettingsButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.TextDark})
+        Library:Tween(SettingsButton, TweenInfo.new(0.2), {ImageColor3 = Library.Theme.TextDark})
     end)
     
     -- Close Button
@@ -644,7 +642,7 @@ function Library:CreateWindow(options)
     SettingsTitle.Position = UDim2.new(0, 15, 0, 8)
     SettingsTitle.Size = UDim2.new(1, -30, 0, 20)
     SettingsTitle.Font = Enum.Font.GothamBold
-    SettingsTitle.Text = "⚙ Settings"
+    SettingsTitle.Text = "Settings"
     SettingsTitle.TextColor3 = Library.Theme.Accent
     SettingsTitle.TextSize = 14
     SettingsTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -1015,7 +1013,7 @@ function Library:CreateWindow(options)
     end)
     
     -- 5. Destroy UI
-    CreateSettingsButton("🗑 Destroy UI", function()
+    CreateSettingsButton("Destroy UI", function()
         Library:Cleanup()
         ScreenGui:Destroy()
     end)
