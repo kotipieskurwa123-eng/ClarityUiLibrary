@@ -7,6 +7,8 @@ local CoreGui = game:GetService("CoreGui")
 
 local Library = {}
 Library.Flags = {}
+Library.Elements = {} 
+Library.Connections = {}
 Library.Settings = {
     LowPerformance = false,
     UIKey = Enum.KeyCode.RightControl
@@ -20,26 +22,23 @@ Library.Theme = {
     Outline = Color3.fromRGB(50, 50, 50),
     Container = Color3.fromRGB(30, 30, 30)
 }
+Library.ZIndex = 1
 
---// Protected GUI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ClarityUI"
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-if RunService:IsStudio() then
-    ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-else
-    -- Try to parent to CoreGui for security, fallback to PlayerGui
-    local success, _ = pcall(function()
-        ScreenGui.Parent = CoreGui
-    end)
-    if not success then
-        ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
+--// Internal Functions
+function Library:BindConnection(signal)
+    local connection = signal
+    table.insert(Library.Connections, connection)
+    return connection
 end
 
---// Utility Functions
-local function Tween(obj, info, props)
+function Library:Cleanup()
+    for _, conn in ipairs(Library.Connections) do
+        if conn then conn:Disconnect() end
+    end
+    Library.Connections = {}
+end
+
+function Library:Tween(obj, info, props)
     if Library.Settings.LowPerformance then
         for prop, val in pairs(props) do
             obj[prop] = val
@@ -52,10 +51,47 @@ local function Tween(obj, info, props)
     return tween
 end
 
+--// Protected GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ClarityUI"
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
+if RunService:IsStudio() then
+    ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+else
+    local success, _ = pcall(function()
+        ScreenGui.Parent = CoreGui
+    end)
+    if not success then
+        ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+end
+
+--// Global Toggles & Keybinds
+Library:BindConnection(UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed then
+        -- UI Toggle
+        if input.KeyCode == Library.Settings.UIKey then
+            ScreenGui.Enabled = not ScreenGui.Enabled
+        end
+        
+        -- Keybind System
+        for flag, val in pairs(Library.Flags) do
+            if typeof(val) == "EnumItem" and val == input.KeyCode then
+                local element = Library.Elements[flag]
+                if element and element.Callback then
+                    element.Callback()
+                end
+            end
+        end
+    end
+end))
+
+--// Utility Functions
 local function Ripple(btn)
     if Library.Settings.LowPerformance then return end
     
-    spawn(function()
+    task.spawn(function()
         local mouse = Players.LocalPlayer:GetMouse()
         local ripple = Instance.new("Frame")
         ripple.Name = "Ripple"
@@ -73,7 +109,7 @@ local function Ripple(btn)
         
         local maxSize = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 1.5
         
-        Tween(ripple, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Library:Tween(ripple, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             Size = UDim2.new(0, maxSize, 0, maxSize),
             Position = UDim2.new(0, mouse.X - btn.AbsolutePosition.X - (maxSize/2), 0, mouse.Y - btn.AbsolutePosition.Y - (maxSize/2)),
             BackgroundTransparency = 1
@@ -90,34 +126,36 @@ local function EnableDragging(frame, dragHandle)
     local startPos
     local dragging = false
     
-    dragHandle.InputBegan:Connect(function(input)
+    Library:BindConnection(dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
             
-            input.Changed:Connect(function()
+            local inputChanged
+            inputChanged = input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
+                    if inputChanged then inputChanged:Disconnect() end
                 end
             end)
         end
-    end)
+    end))
     
-    dragHandle.InputChanged:Connect(function(input)
+    Library:BindConnection(dragHandle.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
-    end)
+    end))
     
-    UserInputService.InputChanged:Connect(function(input)
+    Library:BindConnection(UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
-            Tween(frame, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Library:Tween(frame, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
                 Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
             })
         end
-    end)
+    end))
 end
 
 --// Notification System
@@ -143,10 +181,11 @@ function Library:Notify(options)
     local NotifyFrame = Instance.new("Frame")
     NotifyFrame.Name = "NotifyFrame"
     NotifyFrame.BackgroundColor3 = Library.Theme.Header
-    NotifyFrame.Size = UDim2.new(1, 0, 0, 0) -- Start hidden
+    NotifyFrame.Size = UDim2.new(1, 0, 0, 0)
     NotifyFrame.BorderSizePixel = 0
     NotifyFrame.ClipsDescendants = true
     NotifyFrame.Parent = NotificationContainer
+    NotifyFrame.ZIndex = 100 -- Always on top
     
     local NotifyCorner = Instance.new("UICorner")
     NotifyCorner.CornerRadius = UDim.new(0, 4)
@@ -168,6 +207,7 @@ function Library:Notify(options)
     TitleLabel.TextColor3 = Library.Theme.Accent
     TitleLabel.TextSize = 14
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.ZIndex = 101
     
     local TextLabel = Instance.new("TextLabel")
     TextLabel.Name = "Text"
@@ -181,6 +221,7 @@ function Library:Notify(options)
     TextLabel.TextSize = 12
     TextLabel.TextWrapped = true
     TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel.ZIndex = 101
     
     local ProgressBar = Instance.new("Frame")
     ProgressBar.Name = "Timer"
@@ -189,15 +230,13 @@ function Library:Notify(options)
     ProgressBar.BorderSizePixel = 0
     ProgressBar.Position = UDim2.new(0, 0, 1, -2)
     ProgressBar.Size = UDim2.new(1, 0, 0, 2)
+    ProgressBar.ZIndex = 101
     
-    -- Animation In
-    Tween(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 60)})
-    
-    -- Timer
-    Tween(ProgressBar, TweenInfo.new(Duration, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 2)})
+    Library:Tween(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 60)})
+    Library:Tween(ProgressBar, TweenInfo.new(Duration, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 2)})
     
     task.delay(Duration, function()
-        Tween(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0)})
+        Library:Tween(NotifyFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0)})
         task.wait(0.3)
         NotifyFrame:Destroy()
     end)
@@ -205,21 +244,27 @@ end
 
 --// Config System
 function Library:SaveConfig(name)
+    local folder = "Clarity/Configs"
+    if not isfolder("Clarity") then makefolder("Clarity") end
+    if not isfolder(folder) then makefolder(folder) end
+    
     local json = HttpService:JSONEncode(Library.Flags)
-    writefile("Clarity/Configs/" .. name .. ".json", json)
+    writefile(folder .. "/" .. name .. ".json", json)
     Library:Notify({Title = "Config", Text = "Saved configuration: " .. name})
 end
 
 function Library:LoadConfig(name)
-    if isfile("Clarity/Configs/" .. name .. ".json") then
-        local json = readfile("Clarity/Configs/" .. name .. ".json")
+    local file = "Clarity/Configs/" .. name .. ".json"
+    if isfile(file) then
+        local json = readfile(file)
         local data = HttpService:JSONDecode(json)
         
         for flag, value in pairs(data) do
             if Library.Flags[flag] ~= nil then
                 Library.Flags[flag] = value
-                -- Here we would need to trigger the callback for the UI element
-                -- We will handle this when creating the elements
+                if Library.Elements[flag] and Library.Elements[flag].Set then
+                    Library.Elements[flag].Set(value)
+                end
             end
         end
         Library:Notify({Title = "Config", Text = "Loaded configuration: " .. name})
@@ -261,14 +306,6 @@ function Library:CreateWindow(options)
     HeaderCorner.CornerRadius = UDim.new(0, 6)
     HeaderCorner.Parent = Header
     
-    -- Fix bottom corners of header to be square
-    local HeaderCover = Instance.new("Frame")
-    HeaderCover.BackgroundColor3 = Library.Theme.Header
-    HeaderCover.BorderSizePixel = 0
-    HeaderCover.Position = UDim2.new(0, 0, 1, -5)
-    HeaderCover.Size = UDim2.new(1, 0, 0, 5)
-    HeaderCover.Parent = Header
-    
     local TitleLabel = Instance.new("TextLabel")
     TitleLabel.Name = "Title"
     TitleLabel.Parent = Header
@@ -293,74 +330,9 @@ function Library:CreateWindow(options)
     CloseButton.TextColor3 = Library.Theme.Text
     CloseButton.TextSize = 14
     
-    -- Minimize Button
-    local MinButton = Instance.new("TextButton")
-    MinButton.Name = "Minimize"
-    MinButton.Parent = Header
-    MinButton.BackgroundTransparency = 1
-    MinButton.Position = UDim2.new(1, -60, 0, 0)
-    MinButton.Size = UDim2.new(0, 30, 0, 30)
-    MinButton.Font = Enum.Font.Gotham
-    MinButton.Text = "-"
-    MinButton.TextColor3 = Library.Theme.Text
-    MinButton.TextSize = 14
-    
-    local Minimized = false
-    local OldSize = UDim2.new(0, 500, 0, 350)
-    
-    MinButton.MouseButton1Click:Connect(function()
-        Minimized = not Minimized
-        if Minimized then
-            OldSize = MainFrame.Size
-            Tween(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0, MainFrame.AbsoluteSize.X, 0, 30)})
-            Content.Visible = false
-        else
-            Tween(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = OldSize})
-            task.wait(0.3)
-            Content.Visible = true
-        end
-    end)
-    
-    -- Resize Button
-    local ResizeButton = Instance.new("ImageButton")
-    ResizeButton.Name = "Resize"
-    ResizeButton.Parent = MainFrame
-    ResizeButton.BackgroundTransparency = 1
-    ResizeButton.Position = UDim2.new(1, -15, 1, -15)
-    ResizeButton.Size = UDim2.new(0, 15, 0, 15)
-    ResizeButton.Image = "rbxassetid://6031094676" -- Resize Icon
-    ResizeButton.ImageTransparency = 0.5
-    
-    local Resizing = false
-    local ResizeStart = Vector2.new()
-    local InitialSize = UDim2.new()
-    
-    ResizeButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            Resizing = true
-            ResizeStart = input.Position
-            InitialSize = MainFrame.Size
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if Resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - ResizeStart
-            local newX = math.max(300, InitialSize.X.Offset + delta.X)
-            local newY = math.max(200, InitialSize.Y.Offset + delta.Y)
-            MainFrame.Size = UDim2.new(0, newX, 0, newY)
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            Resizing = false
-        end
-    end)
-    
-    -- Close Button Logic
     CloseButton.MouseButton1Click:Connect(function()
-        ScreenGui.Enabled = not ScreenGui.Enabled
+        Library:Cleanup()
+        ScreenGui:Destroy()
     end)
     
     EnableDragging(MainFrame, Header)
@@ -437,6 +409,11 @@ function Library:CreateWindow(options)
         UIPadding_Page.PaddingLeft = UDim.new(0, 5)
         UIPadding_Page.PaddingRight = UDim.new(0, 5)
         
+        -- Auto Canvas Resize
+        Library:BindConnection(UIListLayout_Page:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            TabPage.CanvasSize = UDim2.new(0, 0, 0, UIListLayout_Page.AbsoluteContentSize.Y + 10)
+        end))
+        
         if FirstTab then
             FirstTab = false
             TabPage.Visible = true
@@ -445,20 +422,17 @@ function Library:CreateWindow(options)
         end
         
         TabButton.MouseButton1Click:Connect(function()
-            -- Switch Tabs
             for _, page in pairs(Pages:GetChildren()) do
-                if page:IsA("ScrollingFrame") then
-                    page.Visible = false
-                end
+                if page:IsA("ScrollingFrame") then page.Visible = false end
             end
             TabPage.Visible = true
             
             for _, btn in pairs(TabContainer:GetChildren()) do
                 if btn:IsA("TextButton") then
-                    Tween(btn, TweenInfo.new(0.2), {TextColor3 = Library.Theme.TextDark, BackgroundColor3 = Library.Theme.Container})
+                    Library:Tween(btn, TweenInfo.new(0.2), {TextColor3 = Library.Theme.TextDark, BackgroundColor3 = Library.Theme.Container})
                 end
             end
-            Tween(TabButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.Accent, BackgroundColor3 = Library.Theme.Header})
+            Library:Tween(TabButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.Accent, BackgroundColor3 = Library.Theme.Header})
         end)
         
         local Tab = {}
@@ -496,16 +470,20 @@ function Library:CreateWindow(options)
             ButtonCorner.Parent = ButtonFrame
             
             ButtonFrame.MouseEnter:Connect(function()
-                Tween(ButtonFrame, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Header})
+                Library:Tween(ButtonFrame, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Header})
             end)
             
             ButtonFrame.MouseLeave:Connect(function()
-                Tween(ButtonFrame, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Container})
+                Library:Tween(ButtonFrame, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Container})
             end)
             
+            local Debounce = false
             ButtonFrame.MouseButton1Click:Connect(function()
+                if Debounce then return end
+                Debounce = true
                 Ripple(ButtonFrame)
                 Callback()
+                task.delay(0.2, function() Debounce = false end)
             end)
         end
         
@@ -560,23 +538,35 @@ function Library:CreateWindow(options)
             DotCorner.CornerRadius = UDim.new(1, 0)
             DotCorner.Parent = ToggleDot
             
-            local function UpdateToggle()
-                if Library.Flags[Flag] then
-                    Tween(ToggleSwitch, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Accent})
-                    Tween(ToggleDot, TweenInfo.new(0.2), {Position = UDim2.new(0, 17, 0.5, -8), BackgroundColor3 = Color3.new(1,1,1)})
+            local function UpdateToggle(val)
+                Library.Flags[Flag] = val
+                if val then
+                    Library:Tween(ToggleSwitch, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Accent})
+                    Library:Tween(ToggleDot, TweenInfo.new(0.2), {Position = UDim2.new(0, 17, 0.5, -8), BackgroundColor3 = Color3.new(1,1,1)})
                 else
-                    Tween(ToggleSwitch, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Background})
-                    Tween(ToggleDot, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0.5, -8), BackgroundColor3 = Library.Theme.TextDark})
+                    Library:Tween(ToggleSwitch, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Background})
+                    Library:Tween(ToggleDot, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0.5, -8), BackgroundColor3 = Library.Theme.TextDark})
                 end
-                Callback(Library.Flags[Flag])
+                Callback(val)
             end
             
+            -- Sync Registry
+            Library.Elements[Flag] = {
+                Set = function(val)
+                     UpdateToggle(val)
+                end,
+                Callback = nil -- Toggles don't use the GlobalKeybind map usually, strictly internal
+            }
+            
+            local Debounce = false
             ToggleFrame.MouseButton1Click:Connect(function()
-                Library.Flags[Flag] = not Library.Flags[Flag]
-                UpdateToggle()
+                if Debounce then return end
+                Debounce = true
+                UpdateToggle(not Library.Flags[Flag])
+                task.delay(0.2, function() Debounce = false end)
             end)
             
-            UpdateToggle()
+            UpdateToggle(Default)
         end
         
         function Tab:CreateSlider(options)
@@ -634,7 +624,9 @@ function Library:CreateWindow(options)
             local SliderFill = Instance.new("Frame")
             SliderFill.Parent = SliderBar
             SliderFill.BackgroundColor3 = Library.Theme.Accent
-            SliderFill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
+            -- Div by 0 fix
+            local Range = math.max(Max - Min, 1)
+            SliderFill.Size = UDim2.new((Default - Min) / Range, 0, 1, 0)
             
             local FillCorner = Instance.new("UICorner")
             FillCorner.CornerRadius = UDim.new(1, 0)
@@ -646,38 +638,60 @@ function Library:CreateWindow(options)
             SliderButton.Size = UDim2.new(1, 0, 1, 0)
             SliderButton.Text = ""
             
-            local dragging = false
-            
-            local function UpdateSlider(input)
-                local pos = UDim2.new(math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1), 0, 1, 0)
-                Tween(SliderFill, TweenInfo.new(0.1), {Size = pos})
-                
-                local value = math.floor(Min + ((Max - Min) * pos.X.Scale))
-                ValueLabel.Text = tostring(value)
-                Library.Flags[Flag] = value
-                Callback(value)
+            local function UpdateSlider(val)
+                local clamped = math.clamp(val, Min, Max)
+                local percent = (clamped - Min) / Range
+                SliderFill.Size = UDim2.new(percent, 0, 1, 0)
+                ValueLabel.Text = tostring(clamped)
+                Library.Flags[Flag] = clamped
+                Callback(clamped)
             end
+            
+            -- Sync Registry
+            Library.Elements[Flag] = {
+                Set = function(val)
+                    UpdateSlider(val)
+                end
+            }
+
+            local dragging = false
             
             SliderButton.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     dragging = true
-                    UpdateSlider(input)
-                end
-            end)
-            
-            UserInputService.InputChanged:Connect(function(input)
-                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                    UpdateSlider(input)
-                end
-            end)
-            
-            UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragging = false
+                    
+                    -- Initial update with Tween
+                    local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+                    local val = math.floor(Min + (Range * pos))
+                    Library:Tween(SliderFill, TweenInfo.new(0.1), {Size = UDim2.new(pos, 0, 1, 0)})
+                    ValueLabel.Text = tostring(val)
+                    Library.Flags[Flag] = val
+                    Callback(val)
+                    
+                    local inputChanged
+                    inputChanged = UserInputService.InputChanged:Connect(function(moveInput)
+                         if dragging and (moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch) then
+                            -- Raw update without Tween for performance
+                            local movePos = math.clamp((moveInput.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+                            SliderFill.Size = UDim2.new(movePos, 0, 1, 0)
+                            local moveVal = math.floor(Min + (Range * movePos))
+                            ValueLabel.Text = tostring(moveVal)
+                            Library.Flags[Flag] = moveVal
+                            Callback(moveVal)
+                         end
+                    end)
+                    
+                    local inputEnded
+                    inputEnded = UserInputService.InputEnded:Connect(function(endInput)
+                        if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                            dragging = false
+                            inputChanged:Disconnect()
+                            inputEnded:Disconnect()
+                        end
+                    end)
                 end
             end)
         end
-        
         
         function Tab:CreateDropdown(options)
             local Text = options.Name or "Dropdown"
@@ -688,13 +702,17 @@ function Library:CreateWindow(options)
             
             Library.Flags[Flag] = Default
             
+            -- Increment ZIndex
+            Library.ZIndex = Library.ZIndex + 1
+            local CurrentZIndex = Library.ZIndex
+            
             local DropdownFrame = Instance.new("Frame")
             DropdownFrame.Name = Text
             DropdownFrame.Parent = TabPage
             DropdownFrame.BackgroundColor3 = Library.Theme.Container
             DropdownFrame.Size = UDim2.new(1, 0, 0, 35)
             DropdownFrame.ClipsDescendants = false
-            DropdownFrame.ZIndex = 2
+            DropdownFrame.ZIndex = CurrentZIndex
             
             local DropdownCorner = Instance.new("UICorner")
             DropdownCorner.CornerRadius = UDim.new(0, 4)
@@ -716,7 +734,7 @@ function Library:CreateWindow(options)
             Arrow.BackgroundTransparency = 1
             Arrow.Position = UDim2.new(1, -25, 0.5, -10)
             Arrow.Size = UDim2.new(0, 20, 0, 20)
-            Arrow.Image = "rbxassetid://6031091004" -- Down Arrow
+            Arrow.Image = "rbxassetid://6031091004"
             Arrow.ImageColor3 = Library.Theme.TextDark
             
             local DropdownButton = Instance.new("TextButton")
@@ -733,7 +751,7 @@ function Library:CreateWindow(options)
             ListFrame.Size = UDim2.new(1, 0, 0, 0)
             ListFrame.Visible = false
             ListFrame.ScrollBarThickness = 2
-            ListFrame.ZIndex = 3
+            ListFrame.ZIndex = CurrentZIndex + 10 -- Ensure list is above
             
             local ListCorner = Instance.new("UICorner")
             ListCorner.CornerRadius = UDim.new(0, 4)
@@ -768,6 +786,7 @@ function Library:CreateWindow(options)
                     OptionBtn.Text = tostring(option)
                     OptionBtn.TextColor3 = Library.Theme.Text
                     OptionBtn.TextSize = 12
+                    OptionBtn.ZIndex = ListFrame.ZIndex
                     
                     local OptCorner = Instance.new("UICorner")
                     OptCorner.CornerRadius = UDim.new(0, 4)
@@ -778,8 +797,8 @@ function Library:CreateWindow(options)
                         Label.Text = Text .. ": " .. tostring(option)
                         Library.Flags[Flag] = option
                         Callback(option)
-                        Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
-                        Tween(Arrow, TweenInfo.new(0.3), {Rotation = 0})
+                        Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
+                        Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 0})
                         task.wait(0.3)
                         ListFrame.Visible = false
                     end)
@@ -788,18 +807,33 @@ function Library:CreateWindow(options)
             
             RefreshOptions()
             
+            -- Sync Registry
+            Library.Elements[Flag] = {
+                Set = function(val)
+                    if table.find(Options, val) then
+                         Label.Text = Text .. ": " .. tostring(val)
+                         Library.Flags[Flag] = val
+                         Callback(val)
+                    end
+                end
+            }
+
+            local Debounce = false
             DropdownButton.MouseButton1Click:Connect(function()
+                if Debounce then return end
+                Debounce = true
                 Open = not Open
                 if Open then
                     ListFrame.Visible = true
-                    Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, math.min(#Options * 27 + 10, 150))})
-                    Tween(Arrow, TweenInfo.new(0.3), {Rotation = 180})
+                    Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, math.min(#Options * 27 + 10, 150))})
+                    Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 180})
                 else
-                    Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
-                    Tween(Arrow, TweenInfo.new(0.3), {Rotation = 0})
+                    Library:Tween(ListFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)})
+                    Library:Tween(Arrow, TweenInfo.new(0.3), {Rotation = 0})
                     task.wait(0.3)
                     ListFrame.Visible = false
                 end
+                task.delay(0.2, function() Debounce = false end)
             end)
         end
         
@@ -855,23 +889,24 @@ function Library:CreateWindow(options)
                 KeyButton.TextColor3 = Library.Theme.Accent
             end)
             
-            UserInputService.InputBegan:Connect(function(input)
-                if Binding then
-                    if input.UserInputType == Enum.UserInputType.Keyboard then
-                        Library.Flags[Flag] = input.KeyCode
-                        KeyButton.Text = input.KeyCode.Name
-                        KeyButton.TextColor3 = Library.Theme.Text
-                        Binding = false
-                        Callback(input.KeyCode)
-                    end
-                elseif input.KeyCode == Library.Flags[Flag] then
-                    -- Execute Toggle callback if it was a toggle keybind
-                    -- But usually keybinds trigger something external. 
-                    -- User receives the callback when key is pressed?
-                    -- Usually UI libraries execute the callback primarily when key is pressed.
-                    Callback()
+            -- Bind to the specific binding state
+            Library:BindConnection(UserInputService.InputBegan:Connect(function(input)
+                if Binding and input.UserInputType == Enum.UserInputType.Keyboard then
+                    Library.Flags[Flag] = input.KeyCode
+                    KeyButton.Text = input.KeyCode.Name
+                    KeyButton.TextColor3 = Library.Theme.Text
+                    Binding = false
                 end
-            end)
+            end))
+            
+            -- Sync Registry
+            Library.Elements[Flag] = {
+                Set = function(val)
+                    Library.Flags[Flag] = val
+                    KeyButton.Text = val.Name
+                end,
+                Callback = Callback -- Register callback for the global listener
+            }
         end
         
         function Tab:CreateTextbox(options)
@@ -922,6 +957,15 @@ function Library:CreateWindow(options)
                 Library.Flags[Flag] = Input.Text
                 Callback(Input.Text)
             end)
+            
+             -- Sync Registry
+            Library.Elements[Flag] = {
+                Set = function(val)
+                    Library.Flags[Flag] = val
+                    Input.Text = val
+                    Callback(val)
+                end
+            }
         end
         
         function Tab:CreateColorPicker(options)
@@ -936,7 +980,7 @@ function Library:CreateWindow(options)
             PickerFrame.Name = Text
             PickerFrame.Parent = TabPage
             PickerFrame.BackgroundColor3 = Library.Theme.Container
-            PickerFrame.Size = UDim2.new(1, 0, 0, 35) -- Collapsed size
+            PickerFrame.Size = UDim2.new(1, 0, 0, 35)
             PickerFrame.ClipsDescendants = true
             
             local PickerCorner = Instance.new("UICorner")
@@ -972,19 +1016,19 @@ function Library:CreateWindow(options)
             ColorPickerContainer.BackgroundColor3 = Library.Theme.Background
             ColorPickerContainer.Position = UDim2.new(0, 10, 0, 40)
             ColorPickerContainer.Size = UDim2.new(1, -20, 0, 150)
-            ColorPickerContainer.Visible = true -- Toggled by height
+            ColorPickerContainer.Visible = true 
             
             local ContainerCorner = Instance.new("UICorner")
             ContainerCorner.CornerRadius = UDim.new(0, 4)
             ContainerCorner.Parent = ColorPickerContainer
             
-            -- SV Image (Saturation/Value)
+            -- SV Image
             local SVImage = Instance.new("ImageButton")
             SVImage.Parent = ColorPickerContainer
             SVImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             SVImage.Position = UDim2.new(0, 10, 0, 10)
             SVImage.Size = UDim2.new(1, -40, 0, 130)
-            SVImage.Image = "rbxassetid://4155801252" -- SV Map
+            SVImage.Image = "rbxassetid://4155801252"
             
             local SVCursor = Instance.new("Frame")
             SVCursor.Parent = SVImage
@@ -1000,8 +1044,6 @@ function Library:CreateWindow(options)
             HueImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             HueImage.Position = UDim2.new(1, -20, 0, 10)
             HueImage.Size = UDim2.new(0, 10, 0, 130)
-            HueImage.Image = "rbxassetid://4155801252" -- We normally use a different asset for Hue or a Gradient
-            -- Using a UIGradient for Hue is better
             HueImage.ImageTransparency = 1 
             
             local HueGradient = Instance.new("UIGradient")
@@ -1016,11 +1058,6 @@ function Library:CreateWindow(options)
                 ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 0))
             })
             HueGradient.Parent = HueImage
-            
-            local HueBar = Instance.new("Frame")
-            HueBar.Parent = HueImage
-            HueBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            HueBar.Size = UDim2.new(1, 0, 1, 0)
             
             local HueCursor = Instance.new("Frame")
             HueCursor.Parent = HueImage
@@ -1058,7 +1095,14 @@ function Library:CreateWindow(options)
                 UpdateColor()
             end
             
-            -- Interaction
+            -- Sync Registry
+            Library.Elements[Flag] = {
+                Set = function(val)
+                    Hue, Sat, Val = Color3.toHSV(val)
+                    UpdateColor()
+                end
+            }
+
             local draggingSV = false
             local draggingHue = false
             
@@ -1066,6 +1110,22 @@ function Library:CreateWindow(options)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     draggingSV = true
                     UpdateSV(input)
+                    
+                    local inputChanged
+                    inputChanged = UserInputService.InputChanged:Connect(function(moveInput)
+                         if draggingSV and (moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch) then
+                            UpdateSV(moveInput)
+                         end
+                    end)
+                    
+                    local inputEnded
+                    inputEnded = UserInputService.InputEnded:Connect(function(endInput)
+                         if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                            draggingSV = false
+                            inputChanged:Disconnect()
+                            inputEnded:Disconnect()
+                         end
+                    end)
                 end
             end)
             
@@ -1073,31 +1133,32 @@ function Library:CreateWindow(options)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     draggingHue = true
                     UpdateHue(input)
+                    
+                    local inputChanged
+                     inputChanged = UserInputService.InputChanged:Connect(function(moveInput)
+                         if draggingHue and (moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch) then
+                            UpdateHue(moveInput)
+                         end
+                    end)
+                    
+                    local inputEnded
+                    inputEnded = UserInputService.InputEnded:Connect(function(endInput)
+                         if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                            draggingHue = false
+                            inputChanged:Disconnect()
+                            inputEnded:Disconnect()
+                         end
+                    end)
                 end
             end)
             
-            UserInputService.InputChanged:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                    if draggingSV then UpdateSV(input) end
-                    if draggingHue then UpdateHue(input) end
-                end
-            end)
-            
-            UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    draggingSV = false
-                    draggingHue = false
-                end
-            end)
-            
-            -- Toggle Visibility
             local Open = false
             ColorPreview.MouseButton1Click:Connect(function()
                 Open = not Open
                 if Open then
-                    Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 200)})
+                    Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 200)})
                 else
-                    Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 35)})
+                    Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 35)})
                 end
             end)
             
