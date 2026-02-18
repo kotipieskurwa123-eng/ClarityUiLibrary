@@ -522,12 +522,31 @@ function Library:CreateWindow(options)
     TitleLabel.Parent = Header
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Position = UDim2.new(0, 10, 0, 0)
-    TitleLabel.Size = UDim2.new(1, -20, 1, 0)
+    TitleLabel.Size = UDim2.new(1, -70, 1, 0)
     TitleLabel.Font = Enum.Font.GothamBold
     TitleLabel.Text = Name
     TitleLabel.TextColor3 = Library.Theme.Text
     TitleLabel.TextSize = 14
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Settings Button
+    local SettingsButton = Instance.new("TextButton")
+    SettingsButton.Name = "Settings"
+    SettingsButton.Parent = Header
+    SettingsButton.BackgroundTransparency = 1
+    SettingsButton.Position = UDim2.new(1, -60, 0, 0)
+    SettingsButton.Size = UDim2.new(0, 30, 0, 30)
+    SettingsButton.Font = Enum.Font.Gotham
+    SettingsButton.Text = "⚙"
+    SettingsButton.TextColor3 = Library.Theme.TextDark
+    SettingsButton.TextSize = 16
+    
+    SettingsButton.MouseEnter:Connect(function()
+        Library:Tween(SettingsButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.Accent})
+    end)
+    SettingsButton.MouseLeave:Connect(function()
+        Library:Tween(SettingsButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.TextDark})
+    end)
     
     -- Close Button
     local CloseButton = Instance.new("TextButton")
@@ -540,6 +559,13 @@ function Library:CreateWindow(options)
     CloseButton.Text = "X"
     CloseButton.TextColor3 = Library.Theme.Text
     CloseButton.TextSize = 14
+    
+    CloseButton.MouseEnter:Connect(function()
+        Library:Tween(CloseButton, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 80, 80)})
+    end)
+    CloseButton.MouseLeave:Connect(function()
+        Library:Tween(CloseButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.Text})
+    end)
     
     CloseButton.MouseButton1Click:Connect(function()
         Library:Cleanup()
@@ -592,6 +618,427 @@ function Library:CreateWindow(options)
     Content.BackgroundTransparency = 1
     Content.Position = UDim2.new(0, 0, 0, 35)
     Content.Size = UDim2.new(1, 0, 1, -35)
+    
+    --// ========== SETTINGS PANEL ==========
+    local SettingsOpen = false
+    
+    local SettingsPanel = Instance.new("Frame")
+    SettingsPanel.Name = "SettingsPanel"
+    SettingsPanel.Parent = MainFrame
+    SettingsPanel.BackgroundColor3 = Library.Theme.Background
+    SettingsPanel.Position = UDim2.new(0, 0, 0, 35)
+    SettingsPanel.Size = UDim2.new(1, 0, 1, -35)
+    SettingsPanel.Visible = false
+    SettingsPanel.ZIndex = 50
+    SettingsPanel.ClipsDescendants = true
+    SettingsPanel.BackgroundTransparency = 0
+    
+    local SettingsCorner = Instance.new("UICorner")
+    SettingsCorner.CornerRadius = UDim.new(0, 4)
+    SettingsCorner.Parent = SettingsPanel
+    
+    -- Settings Header Label
+    local SettingsTitle = Instance.new("TextLabel")
+    SettingsTitle.Parent = SettingsPanel
+    SettingsTitle.BackgroundTransparency = 1
+    SettingsTitle.Position = UDim2.new(0, 15, 0, 8)
+    SettingsTitle.Size = UDim2.new(1, -30, 0, 20)
+    SettingsTitle.Font = Enum.Font.GothamBold
+    SettingsTitle.Text = "⚙ Settings"
+    SettingsTitle.TextColor3 = Library.Theme.Accent
+    SettingsTitle.TextSize = 14
+    SettingsTitle.TextXAlignment = Enum.TextXAlignment.Left
+    SettingsTitle.ZIndex = 51
+    
+    -- Divider line under settings title
+    local SettingsDivider = Instance.new("Frame")
+    SettingsDivider.Parent = SettingsPanel
+    SettingsDivider.BackgroundColor3 = Library.Theme.Outline
+    SettingsDivider.BorderSizePixel = 0
+    SettingsDivider.Position = UDim2.new(0, 10, 0, 32)
+    SettingsDivider.Size = UDim2.new(1, -20, 0, 1)
+    SettingsDivider.ZIndex = 51
+    
+    -- Scrolling content for settings
+    local SettingsScroll = Instance.new("ScrollingFrame")
+    SettingsScroll.Parent = SettingsPanel
+    SettingsScroll.BackgroundTransparency = 1
+    SettingsScroll.Position = UDim2.new(0, 0, 0, 38)
+    SettingsScroll.Size = UDim2.new(1, 0, 1, -38)
+    SettingsScroll.ScrollBarThickness = 2
+    SettingsScroll.ScrollBarImageColor3 = Library.Theme.Accent
+    SettingsScroll.ZIndex = 51
+    SettingsScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    SettingsScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    
+    local SettingsLayout = Instance.new("UIListLayout")
+    SettingsLayout.Parent = SettingsScroll
+    SettingsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    SettingsLayout.Padding = UDim.new(0, 5)
+    
+    local SettingsPadding = Instance.new("UIPadding")
+    SettingsPadding.Parent = SettingsScroll
+    SettingsPadding.PaddingTop = UDim.new(0, 5)
+    SettingsPadding.PaddingLeft = UDim.new(0, 10)
+    SettingsPadding.PaddingRight = UDim.new(0, 10)
+    SettingsPadding.PaddingBottom = UDim.new(0, 5)
+    
+    -- Helper: Create a settings toggle row
+    local function CreateSettingsToggle(name, default, callback)
+        local RowFrame = Instance.new("TextButton")
+        RowFrame.Name = name
+        RowFrame.Parent = SettingsScroll
+        RowFrame.BackgroundColor3 = Library.Theme.Container
+        RowFrame.Size = UDim2.new(1, 0, 0, 35)
+        RowFrame.AutoButtonColor = false
+        RowFrame.Text = ""
+        RowFrame.ZIndex = 52
+        
+        local RowCorner = Instance.new("UICorner")
+        RowCorner.CornerRadius = UDim.new(0, 4)
+        RowCorner.Parent = RowFrame
+        
+        local RowLabel = Instance.new("TextLabel")
+        RowLabel.Parent = RowFrame
+        RowLabel.BackgroundTransparency = 1
+        RowLabel.Position = UDim2.new(0, 10, 0, 0)
+        RowLabel.Size = UDim2.new(1, -60, 1, 0)
+        RowLabel.Font = Enum.Font.Gotham
+        RowLabel.Text = name
+        RowLabel.TextColor3 = Library.Theme.Text
+        RowLabel.TextSize = 12
+        RowLabel.TextXAlignment = Enum.TextXAlignment.Left
+        RowLabel.ZIndex = 53
+        
+        local Switch = Instance.new("Frame")
+        Switch.Parent = RowFrame
+        Switch.BackgroundColor3 = Library.Theme.Background
+        Switch.Position = UDim2.new(1, -45, 0.5, -10)
+        Switch.Size = UDim2.new(0, 35, 0, 20)
+        Switch.ZIndex = 53
+        
+        local SwitchCorner = Instance.new("UICorner")
+        SwitchCorner.CornerRadius = UDim.new(1, 0)
+        SwitchCorner.Parent = Switch
+        
+        local Dot = Instance.new("Frame")
+        Dot.Parent = Switch
+        Dot.BackgroundColor3 = Library.Theme.TextDark
+        Dot.Position = UDim2.new(0, 2, 0.5, -8)
+        Dot.Size = UDim2.new(0, 16, 0, 16)
+        Dot.ZIndex = 54
+        
+        local DotCorner = Instance.new("UICorner")
+        DotCorner.CornerRadius = UDim.new(1, 0)
+        DotCorner.Parent = Dot
+        
+        local toggled = default
+        
+        local function UpdateVisual(val)
+            if val then
+                Library:Tween(Switch, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Accent})
+                Library:Tween(Dot, TweenInfo.new(0.2), {Position = UDim2.new(0, 17, 0.5, -8), BackgroundColor3 = Color3.new(1,1,1)})
+            else
+                Library:Tween(Switch, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Background})
+                Library:Tween(Dot, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0.5, -8), BackgroundColor3 = Library.Theme.TextDark})
+            end
+        end
+        
+        UpdateVisual(toggled)
+        
+        RowFrame.MouseButton1Click:Connect(function()
+            toggled = not toggled
+            UpdateVisual(toggled)
+            callback(toggled)
+        end)
+        
+        RowFrame.MouseEnter:Connect(function()
+            Library:Tween(RowFrame, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Header})
+        end)
+        RowFrame.MouseLeave:Connect(function()
+            Library:Tween(RowFrame, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Container})
+        end)
+        
+        return {SetValue = function(val) toggled = val; UpdateVisual(val) end}
+    end
+    
+    -- Helper: Create a settings button row
+    local function CreateSettingsButton(name, callback)
+        local BtnFrame = Instance.new("TextButton")
+        BtnFrame.Name = name
+        BtnFrame.Parent = SettingsScroll
+        BtnFrame.BackgroundColor3 = Library.Theme.Container
+        BtnFrame.Size = UDim2.new(1, 0, 0, 35)
+        BtnFrame.AutoButtonColor = false
+        BtnFrame.Font = Enum.Font.Gotham
+        BtnFrame.Text = name
+        BtnFrame.TextColor3 = Library.Theme.Text
+        BtnFrame.TextSize = 12
+        BtnFrame.ZIndex = 52
+        
+        local BtnCorner = Instance.new("UICorner")
+        BtnCorner.CornerRadius = UDim.new(0, 4)
+        BtnCorner.Parent = BtnFrame
+        
+        BtnFrame.MouseEnter:Connect(function()
+            Library:Tween(BtnFrame, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Header})
+        end)
+        BtnFrame.MouseLeave:Connect(function()
+            Library:Tween(BtnFrame, TweenInfo.new(0.2), {BackgroundColor3 = Library.Theme.Container})
+        end)
+        
+        BtnFrame.MouseButton1Click:Connect(function()
+            Ripple(BtnFrame)
+            callback()
+        end)
+    end
+    
+    -- Helper: Create a settings keybind row
+    local function CreateSettingsKeybind(name, default, callback)
+        local RowFrame = Instance.new("Frame")
+        RowFrame.Name = name
+        RowFrame.Parent = SettingsScroll
+        RowFrame.BackgroundColor3 = Library.Theme.Container
+        RowFrame.Size = UDim2.new(1, 0, 0, 35)
+        RowFrame.ZIndex = 52
+        
+        local RowCorner = Instance.new("UICorner")
+        RowCorner.CornerRadius = UDim.new(0, 4)
+        RowCorner.Parent = RowFrame
+        
+        local RowLabel = Instance.new("TextLabel")
+        RowLabel.Parent = RowFrame
+        RowLabel.BackgroundTransparency = 1
+        RowLabel.Position = UDim2.new(0, 10, 0, 0)
+        RowLabel.Size = UDim2.new(1, -110, 1, 0)
+        RowLabel.Font = Enum.Font.Gotham
+        RowLabel.Text = name
+        RowLabel.TextColor3 = Library.Theme.Text
+        RowLabel.TextSize = 12
+        RowLabel.TextXAlignment = Enum.TextXAlignment.Left
+        RowLabel.ZIndex = 53
+        
+        local KeyBtn = Instance.new("TextButton")
+        KeyBtn.Parent = RowFrame
+        KeyBtn.BackgroundColor3 = Library.Theme.Background
+        KeyBtn.Position = UDim2.new(1, -100, 0.5, -10)
+        KeyBtn.Size = UDim2.new(0, 90, 0, 20)
+        KeyBtn.AutoButtonColor = false
+        KeyBtn.Font = Enum.Font.Gotham
+        KeyBtn.Text = default.Name
+        KeyBtn.TextColor3 = Library.Theme.Text
+        KeyBtn.TextSize = 11
+        KeyBtn.ZIndex = 53
+        
+        local KeyCorner = Instance.new("UICorner")
+        KeyCorner.CornerRadius = UDim.new(0, 4)
+        KeyCorner.Parent = KeyBtn
+        
+        local Binding = false
+        
+        KeyBtn.MouseButton1Click:Connect(function()
+            Binding = true
+            KeyBtn.Text = "..."
+            KeyBtn.TextColor3 = Library.Theme.Accent
+        end)
+        
+        Library:BindConnection(UserInputService.InputBegan:Connect(function(input)
+            if Binding and input.UserInputType == Enum.UserInputType.Keyboard then
+                KeyBtn.Text = input.KeyCode.Name
+                KeyBtn.TextColor3 = Library.Theme.Text
+                Binding = false
+                callback(input.KeyCode)
+            end
+        end))
+    end
+    
+    -- Helper: Create a settings color picker row (inline RGB)
+    local function CreateSettingsColorPicker(name, default, callback)
+        local PickerFrame = Instance.new("Frame")
+        PickerFrame.Name = name
+        PickerFrame.Parent = SettingsScroll
+        PickerFrame.BackgroundColor3 = Library.Theme.Container
+        PickerFrame.Size = UDim2.new(1, 0, 0, 35)
+        PickerFrame.ClipsDescendants = true
+        PickerFrame.ZIndex = 52
+        
+        local PCorner = Instance.new("UICorner")
+        PCorner.CornerRadius = UDim.new(0, 4)
+        PCorner.Parent = PickerFrame
+        
+        local PLabel = Instance.new("TextLabel")
+        PLabel.Parent = PickerFrame
+        PLabel.BackgroundTransparency = 1
+        PLabel.Position = UDim2.new(0, 10, 0, 0)
+        PLabel.Size = UDim2.new(1, -60, 0, 35)
+        PLabel.Font = Enum.Font.Gotham
+        PLabel.Text = name
+        PLabel.TextColor3 = Library.Theme.Text
+        PLabel.TextSize = 12
+        PLabel.TextXAlignment = Enum.TextXAlignment.Left
+        PLabel.ZIndex = 53
+        
+        local Preview = Instance.new("Frame")
+        Preview.Parent = PickerFrame
+        Preview.BackgroundColor3 = default
+        Preview.Position = UDim2.new(1, -45, 0.5, -10)
+        Preview.Size = UDim2.new(0, 35, 0, 20)
+        Preview.ZIndex = 53
+        
+        local PreviewC = Instance.new("UICorner")
+        PreviewC.CornerRadius = UDim.new(0, 4)
+        PreviewC.Parent = Preview
+        
+        local ToggleBtn = Instance.new("TextButton")
+        ToggleBtn.Parent = PickerFrame
+        ToggleBtn.BackgroundTransparency = 1
+        ToggleBtn.Size = UDim2.new(1, 0, 0, 35)
+        ToggleBtn.Text = ""
+        ToggleBtn.ZIndex = 54
+        
+        local SlidersContainer = Instance.new("Frame")
+        SlidersContainer.Parent = PickerFrame
+        SlidersContainer.BackgroundTransparency = 1
+        SlidersContainer.Position = UDim2.new(0, 0, 0, 40)
+        SlidersContainer.Size = UDim2.new(1, 0, 0, 80)
+        SlidersContainer.Visible = false
+        SlidersContainer.ZIndex = 53
+        
+        local r, g, b = default.R * 255, default.G * 255, default.B * 255
+        
+        local function UpdateColor()
+            local newColor = Color3.fromRGB(r, g, b)
+            Preview.BackgroundColor3 = newColor
+            callback(newColor)
+        end
+        
+        local function MakeSliderRow(label, yPos, initVal, setFunc)
+            local SliderBg = Instance.new("Frame")
+            SliderBg.Parent = SlidersContainer
+            SliderBg.BackgroundColor3 = Library.Theme.Background
+            SliderBg.Position = UDim2.new(0, 10, 0, yPos)
+            SliderBg.Size = UDim2.new(1, -20, 0, 15)
+            SliderBg.ZIndex = 54
+            
+            local SC2 = Instance.new("UICorner")
+            SC2.CornerRadius = UDim.new(0, 4)
+            SC2.Parent = SliderBg
+            
+            local Fill2 = Instance.new("Frame")
+            Fill2.Parent = SliderBg
+            Fill2.BackgroundColor3 = Library.Theme.Accent
+            Fill2.Size = UDim2.new(initVal/255, 0, 1, 0)
+            Fill2.ZIndex = 55
+            
+            local FC2 = Instance.new("UICorner")
+            FC2.CornerRadius = UDim.new(0, 4)
+            FC2.Parent = Fill2
+            
+            local SL2 = Instance.new("TextLabel")
+            SL2.Parent = SliderBg
+            SL2.BackgroundTransparency = 1
+            SL2.Size = UDim2.new(1, 0, 1, 0)
+            SL2.Font = Enum.Font.GothamBold
+            SL2.Text = label
+            SL2.TextColor3 = Color3.new(1,1,1)
+            SL2.TextSize = 10
+            SL2.ZIndex = 56
+            
+            local Btn2 = Instance.new("TextButton")
+            Btn2.Parent = SliderBg
+            Btn2.BackgroundTransparency = 1
+            Btn2.Size = UDim2.new(1, 0, 1, 0)
+            Btn2.Text = ""
+            Btn2.ZIndex = 57
+            
+            local dragging2 = false
+            
+            Btn2.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging2 = true
+                    local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
+                    Fill2.Size = UDim2.new(pos, 0, 1, 0)
+                    setFunc(math.floor(pos * 255))
+                end
+            end)
+            
+            UserInputService.InputChanged:Connect(function(input)
+                if dragging2 and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
+                    Fill2.Size = UDim2.new(pos, 0, 1, 0)
+                    setFunc(math.floor(pos * 255))
+                end
+            end)
+            
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging2 = false end
+            end)
+        end
+        
+        MakeSliderRow("R", 0, r, function(val) r = val; UpdateColor() end)
+        MakeSliderRow("G", 22, g, function(val) g = val; UpdateColor() end)
+        MakeSliderRow("B", 44, b, function(val) b = val; UpdateColor() end)
+        
+        local cpOpen = false
+        ToggleBtn.MouseButton1Click:Connect(function()
+            cpOpen = not cpOpen
+            if cpOpen then
+                SlidersContainer.Visible = true
+                Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 120)})
+            else
+                Library:Tween(PickerFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 35)})
+                task.delay(0.3, function() SlidersContainer.Visible = false end)
+            end
+        end)
+    end
+    
+    -- ===== Populate Settings =====
+    
+    -- 1. UI Toggle Key
+    CreateSettingsKeybind("UI Toggle Key", Library.Settings.UIKey, function(keyCode)
+        Library.Settings.UIKey = keyCode
+    end)
+    
+    -- 2. Low Performance Mode
+    CreateSettingsToggle("Low Performance", Library.Settings.LowPerformance, function(val)
+        Library.Settings.LowPerformance = val
+    end)
+    
+    -- 3. Rainbow Accent
+    CreateSettingsToggle("Rainbow Accent", Library.Settings.RainbowAccent, function(val)
+        Library:SetRainbow(val)
+    end)
+    
+    -- 4. Accent Color
+    CreateSettingsColorPicker("Accent Color", Library.Theme.Accent, function(color)
+        Library.Theme.Accent = color
+    end)
+    
+    -- 5. Destroy UI
+    CreateSettingsButton("🗑 Destroy UI", function()
+        Library:Cleanup()
+        ScreenGui:Destroy()
+    end)
+    
+    -- Toggle Settings Panel
+    SettingsButton.MouseButton1Click:Connect(function()
+        SettingsOpen = not SettingsOpen
+        if SettingsOpen then
+            Content.Visible = false
+            SettingsPanel.Visible = true
+            SettingsPanel.BackgroundTransparency = 1
+            Library:Tween(SettingsPanel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+            Library:Tween(SettingsButton, TweenInfo.new(0.3), {Rotation = 90})
+        else
+            Library:Tween(SettingsPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1})
+            Library:Tween(SettingsButton, TweenInfo.new(0.3), {Rotation = 0})
+            task.delay(0.2, function()
+                SettingsPanel.Visible = false
+                Content.Visible = true
+            end)
+        end
+    end)
+    --// ========== END SETTINGS PANEL ==========
     
     local TabContainer = Instance.new("ScrollingFrame")
     TabContainer.Name = "TabContainer"
