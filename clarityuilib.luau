@@ -530,17 +530,15 @@ function Library:CreateWindow(options)
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     
     -- Settings Button
-    local SettingsButton = Instance.new("TextButton")
+    local SettingsButton = Instance.new("ImageButton")
     SettingsButton.Name = "Settings"
     SettingsButton.Parent = Header
     SettingsButton.BackgroundColor3 = Library.Theme.Container
-    SettingsButton.BackgroundTransparency = 0.5
-    SettingsButton.Position = UDim2.new(1, -58, 0, 4)
-    SettingsButton.Size = UDim2.new(0, 22, 0, 22)
-    SettingsButton.Font = Enum.Font.GothamBold
-    SettingsButton.Text = "..."
-    SettingsButton.TextColor3 = Library.Theme.TextDark
-    SettingsButton.TextSize = 14
+    SettingsButton.BackgroundTransparency = 1
+    SettingsButton.Position = UDim2.new(1, -55, 0, 5)
+    SettingsButton.Size = UDim2.new(0, 20, 0, 20)
+    SettingsButton.Image = "rbxassetid://6031280882"
+    SettingsButton.ImageColor3 = Library.Theme.TextDark
     SettingsButton.AutoButtonColor = false
     
     local SettingsBtnCorner = Instance.new("UICorner")
@@ -548,10 +546,10 @@ function Library:CreateWindow(options)
     SettingsBtnCorner.Parent = SettingsButton
     
     SettingsButton.MouseEnter:Connect(function()
-        Library:Tween(SettingsButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.Accent, BackgroundTransparency = 0})
+        Library:Tween(SettingsButton, TweenInfo.new(0.2), {ImageColor3 = Library.Theme.Accent})
     end)
     SettingsButton.MouseLeave:Connect(function()
-        Library:Tween(SettingsButton, TweenInfo.new(0.2), {TextColor3 = Library.Theme.TextDark, BackgroundTransparency = 0.5})
+        Library:Tween(SettingsButton, TweenInfo.new(0.2), {ImageColor3 = Library.Theme.TextDark})
     end)
     
     -- Close Button
