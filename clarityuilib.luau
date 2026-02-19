@@ -1,30 +1,43 @@
-local Clarity = {}
+-- Clarity UI Library
+-- Made for Roblox Executors (Luau)
+-- Focus: Beautiful, Clean, Smooth Animations, Developer Friendly
 
--- Services
-local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 local HttpService = game:GetService("HttpService")
-local CoreGui = game:GetService("CoreGui")
-local Players = game:GetService("Players")
 
--- Player
-local Player = Players.LocalPlayer
-local Mouse = Player:GetMouse()
-
--- Variables
-local ViewportSize = workspace.CurrentCamera:WaitForChild("ViewportSize", math.huge).Value
+local Clarity = {
+    Settings = {
+        Name = "Clarity UI",
+        Theme = {
+            Main = Color3.fromRGB(25, 25, 25),
+            Secondary = Color3.fromRGB(35, 35, 35),
+            Stroke = Color3.fromRGB(50, 50, 50),
+            Divider = Color3.fromRGB(45, 45, 45),
+            Text = Color3.fromRGB(240, 240, 240),
+            TextDark = Color3.fromRGB(150, 150, 150),
+            Accent = Color3.fromRGB(0, 120, 215), -- Default Blue
+            Success = Color3.fromRGB(40, 200, 80),
+            Warning = Color3.fromRGB(220, 180, 40),
+            Error = Color3.fromRGB(220, 50, 50)
+        },
+        Font = Enum.Font.Gotham,
+        FontBold = Enum.Font.GothamBold,
+        TextSize = 14,
+        CornerRadius = UDim.new(0, 6)
+    },
+    Opened = true
+}
 
 -- Utility Functions
-local Utility = {}
-
-function Utility:Tween(instance, info, goal)
-    local tween = TweenService:Create(instance, TweenInfo.new(table.unpack(info)), goal)
-    tween:Play()
-    return tween
+local function GetService(service)
+    return game:GetService(service)
 end
 
-function Utility:Create(class, properties)
+local function Create(class, properties)
     local instance = Instance.new(class)
     for property, value in pairs(properties) do
         instance[property] = value
@@ -32,614 +45,23 @@ function Utility:Create(class, properties)
     return instance
 end
 
-function Utility:Validate(defaults, options)
-    for key, value in pairs(defaults) do
-        if options[key] == nil then
-            options[key] = value
-        end
-    end
-    return options
-end
+local function MakeDraggable(gui)
+    local dragging
+    local dragInput
+    local dragStart
+    local startPos
 
-function Utility:Connection(signal, callback)
-    local connection = signal:Connect(callback)
-    return connection
-end
-
--- Theme System
-Clarity.Theme = {
-    Background = Color3.fromRGB(20, 20, 20),
-    SectionBackground = Color3.fromRGB(30, 30, 30),
-    TextColor = Color3.fromRGB(255, 255, 255),
-    Accent = Color3.fromRGB(0, 150, 255),
-    Outline = Color3.fromRGB(50, 50, 50),
-    Hover = Color3.fromRGB(40, 40, 40),
-    Font = Enum.Font.Gotham,
-    TextSize = 14
-}
-
-function Clarity:UpdateTheme(newTheme)
-    for key, value in pairs(newTheme) do
-        Clarity.Theme[key] = value
-    end
-    -- Here you would iterate through all UI elements and update their colors/fonts
-    -- For simplicity in this single-file implementation, we'll assume themes are set on creation or re-apply via a reload function (not fully implemented here to save space)
-end
-
--- Main Library
-function Clarity.new(options)
-    options = Utility:Validate({
-        Name = "Clarity UI",
-        Size = UDim2.fromOffset(600, 400),
-        Keybind = Enum.KeyCode.RightControl
-    }, options or {})
-
-    local Library = {
-        Open = true,
-        Tabs = {},
-        Connections = {},
-        Flags = {},
-        ConfigFolder = "ClarityConfigs"
-    }
-
-    -- GUI Creation
-    local ScreenGui = Utility:Create("ScreenGui", {
-        Name = "ClarityLib",
-        Parent = RunService:IsStudio() and Player.PlayerGui or CoreGui,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        ResetOnSpawn = false
-    })
-    
-    -- Main Frame
-    local MainFrame = Utility:Create("Frame", {
-        Name = "MainFrame",
-        Parent = ScreenGui,
-        BackgroundColor3 = Clarity.Theme.Background,
-        BorderSizePixel = 0,
-        Position = UDim2.fromScale(0.5, 0.5),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = options.Size,
-        ClipsDescendants = true
-    })
-    
-    local UICorner = Utility:Create("UICorner", {
-        CornerRadius = UDim.new(0, 8),
-        Parent = MainFrame
-    })
-
-    -- Shadow
-    local Shadow = Utility:Create("ImageLabel", {
-        Name = "Shadow",
-        Parent = MainFrame,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, -15, 0, -15),
-        Size = UDim2.new(1, 30, 1, 30),
-        ZIndex = 0,
-        Image = "rbxassetid://5554236805",
-        ImageColor3 = Color3.new(0,0,0),
-        ScaleType = Enum.ScaleType.Slice,
-        SliceCenter = Rect.new(23, 23, 277, 277)
-    })
-
-    -- Top Bar
-    local TopBar = Utility:Create("Frame", {
-        Name = "TopBar",
-        Parent = MainFrame,
-        BackgroundColor3 = Clarity.Theme.Background, -- Or slightly lighter
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 40)
-    })
-    
-    local Title = Utility:Create("TextLabel", {
-        Name = "Title",
-        Parent = TopBar,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 15, 0, 0),
-        Size = UDim2.new(1, -30, 1, 0),
-        Font = Clarity.Theme.Font,
-        Text = options.Name,
-        TextColor3 = Clarity.Theme.TextColor,
-        TextSize = 16,
-        TextXAlignment = Enum.TextXAlignment.Left
-    })
-    
-    -- Container for Tabs/Content
-    local ContentContainer = Utility:Create("Frame", {
-        Name = "ContentContainer",
-        Parent = MainFrame,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, 40),
-        Size = UDim2.new(1, 0, 1, -40)
-    })
-
-    -- Tab Bar (Vertical or Horizontal? Let's go with Horizontal for now, or Vertical sidebar is popular)
-    -- Let's do a Sidebar for a "Professional" look
-    local Sidebar = Utility:Create("ScrollingFrame", {
-        Name = "Sidebar",
-        Parent = ContentContainer,
-        BackgroundColor3 = Clarity.Theme.SectionBackground,
-        BorderSizePixel = 0,
-        Size = UDim2.new(0, 150, 1, 0),
-        ScrollBarThickness = 0,
-        CanvasSize = UDim2.new(0, 0, 0, 0) -- Auto resize
-    })
-    
-    local SidebarLayout = Utility:Create("UIListLayout", {
-        Parent = Sidebar,
-        Padding = UDim.new(0, 5),
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        HorizontalAlignment = Enum.HorizontalAlignment.Center
-    })
-    
-    local SidebarPadding = Utility:Create("UIPadding", {
-        Parent = Sidebar,
-        PaddingTop = UDim.new(0, 10),
-        PaddingBottom = UDim.new(0, 10)
-    })
-    
-    -- Pages Container
-    local Pages = Utility:Create("Frame", {
-        Name = "Pages",
-        Parent = ContentContainer,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 150, 0, 0),
-        Size = UDim2.new(1, -150, 1, 0),
-        ClipsDescendants = true
-    })
-
-    -- Notification System
-    local NotificationContainer = Utility:Create("Frame", {
-        Name = "Notifications",
-        Parent = ScreenGui, -- Outside MainFrame
-        BackgroundTransparency = 1,
-        Position = UDim2.new(1, -20, 1, -20),
-        AnchorPoint = Vector2.new(1, 1),
-        Size = UDim2.new(0, 300, 1, 0),
-        ClipsDescendants = false
-    })
-    
-    local NotificationLayout = Utility:Create("UIListLayout", {
-        Parent = NotificationContainer,
-        Padding = UDim.new(0, 10),
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        VerticalAlignment = Enum.VerticalAlignment.Bottom,
-        HorizontalAlignment = Enum.HorizontalAlignment.Right
-    })
-
-    function Library:Notify(title, description, duration)
-        duration = duration or 3
-        
-        local NotifFrame = Utility:Create("Frame", {
-            Name = "Notification",
-            Parent = NotificationContainer,
-            BackgroundColor3 = Clarity.Theme.SectionBackground,
-            BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 0), -- Start collapsed
-            ClipsDescendants = true
-        })
-
-        local NotifCorner = Utility:Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = NotifFrame })
-        local NotifStroke = Utility:Create("UIStroke", { Parent = NotifFrame, Color = Clarity.Theme.Outline, Thickness = 1 })
-
-        local NotifTitle = Utility:Create("TextLabel", {
-            Parent = NotifFrame,
-            BackgroundTransparency = 1,
-            Position = UDim2.new(0, 10, 0, 5),
-            Size = UDim2.new(1, -20, 0, 20),
-            Font = Clarity.Theme.Font,
-            Text = title,
-            TextColor3 = Clarity.Theme.Accent,
-            TextSize = 14,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextTransparency = 1
-        })
-
-        local NotifDesc = Utility:Create("TextLabel", {
-            Parent = NotifFrame,
-            BackgroundTransparency = 1,
-            Position = UDim2.new(0, 10, 0, 25),
-            Size = UDim2.new(1, -20, 0, 0), -- Auto size?
-            Font = Clarity.Theme.Font,
-            Text = description,
-            TextColor3 = Clarity.Theme.TextColor,
-            TextSize = 12,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextWrapped = true,
-            TextTransparency = 1
-        })
-        
-        -- Animation Open
-        NotifFrame:TweenSize(UDim2.new(1, 0, 0, 60), "Out", "Quad", 0.3)
-        Utility:Tween(NotifTitle, {0.3}, {TextTransparency = 0})
-        Utility:Tween(NotifDesc, {0.3}, {TextTransparency = 0})
-
-        -- Close
-        task.delay(duration, function()
-            Utility:Tween(NotifTitle, {0.3}, {TextTransparency = 1})
-            Utility:Tween(NotifDesc, {0.3}, {TextTransparency = 1})
-            NotifFrame:TweenSize(UDim2.new(1, 0, 0, 0), "In", "Quad", 0.3, false, function()
-                NotifFrame:Destroy()
-            end)
-        end)
-    end
-
-    -- Tab System
-    local FirstTab = true
-    
-    function Library:Tab(name)
-        local Tab = {}
-        
-        -- Tab Button
-        local TabButton = Utility:Create("TextButton", {
-            Name = name .. "Tab",
-            Parent = Sidebar,
-            BackgroundColor3 = Clarity.Theme.Background,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, -20, 0, 30),
-            Font = Clarity.Theme.Font,
-            Text = name,
-            TextColor3 = Clarity.Theme.TextColor,
-            TextSize = 14,
-            AutoButtonColor = false
-        })
-        
-        local TabCorner = Utility:Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = TabButton })
-        
-        -- Tab Page
-        local TabPage = Utility:Create("ScrollingFrame", {
-            Name = name .. "Page",
-            Parent = Pages,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, 0),
-            ScrollBarThickness = 2,
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            Visible = false
-        })
-        
-        local PageLayout = Utility:Create("UIListLayout", {
-            Parent = TabPage,
-            Padding = UDim.new(0, 10),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-            HorizontalAlignment = Enum.HorizontalAlignment.Center
-        })
-        
-        local PagePadding = Utility:Create("UIPadding", {
-            Parent = TabPage,
-            PaddingTop = UDim.new(0, 10),
-            PaddingBottom = UDim.new(0, 10),
-            PaddingLeft = UDim.new(0, 10),
-            PaddingRight = UDim.new(0, 10)
-        })
-        
-        -- Activation Logic
-        local function Activate()
-            for _, page in pairs(Pages:GetChildren()) do
-                if page:IsA("ScrollingFrame") then page.Visible = false end
-            end
-            for _, btn in pairs(Sidebar:GetChildren()) do
-                if btn:IsA("TextButton") then
-                    Utility:Tween(btn, {0.2}, {BackgroundTransparency = 1, TextColor3 = Clarity.Theme.TextColor})
-                end
-            end
-            
-            TabPage.Visible = true
-            Utility:Tween(TabButton, {0.2}, {BackgroundTransparency = 0, BackgroundColor3 = Clarity.Theme.Accent, TextColor3 = Color3.new(1,1,1)})
-        end
-        
-        TabButton.MouseButton1Click:Connect(Activate)
-        
-        if FirstTab then
-            FirstTab = false
-            Activate()
-        end
-        
-        -- Component Functions
-        function Tab:Section(title)
-            local Section = {}
-            
-            local SectionFrame = Utility:Create("Frame", {
-                Name = title,
-                Parent = TabPage,
-                BackgroundColor3 = Clarity.Theme.SectionBackground,
-                Size = UDim2.new(1, -10, 0, 30), -- Auto size later
-            })
-            
-            local SectionCorner = Utility:Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = SectionFrame })
-            
-            local SectionTitle = Utility:Create("TextLabel", {
-                Parent = SectionFrame,
-                BackgroundTransparency = 1,
-                Position = UDim2.new(0, 10, 0, 0),
-                Size = UDim2.new(1, -20, 0, 30),
-                Font = Clarity.Theme.Font,
-                Text = title,
-                TextColor3 = Clarity.Theme.Accent,
-                TextSize = 12,
-                TextXAlignment = Enum.TextXAlignment.Left
-            })
-
-            local SectionContent = Utility:Create("Frame", {
-                Parent = SectionFrame,
-                BackgroundTransparency = 1,
-                Position = UDim2.new(0, 0, 0, 30),
-                Size = UDim2.new(1, 0, 0, 0),
-                ClipsDescendants = true
-            })
-            
-            local SectionLayout = Utility:Create("UIListLayout", {
-                Parent = SectionContent,
-                Padding = UDim.new(0, 5),
-                SortOrder = Enum.SortOrder.LayoutOrder,
-                HorizontalAlignment = Enum.HorizontalAlignment.Center
-            })
-            
-            local SectionPadding = Utility:Create("UIPadding", {
-                Parent = SectionContent,
-                PaddingBottom = UDim.new(0, 10)
-            })
-            
-            -- Auto Resize
-            SectionLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                SectionContent.Size = UDim2.new(1, 0, 0, SectionLayout.AbsoluteContentSize.Y + 10)
-                SectionFrame.Size = UDim2.new(1, -10, 0, SectionLayout.AbsoluteContentSize.Y + 40)
-                
-                -- Update TabPage Canvas
-                local totalHeight = 0
-                for _, child in pairs(TabPage:GetChildren()) do
-                    if child:IsA("Frame") then totalHeight = totalHeight + child.AbsoluteSize.Y + 10 end
-                end
-                TabPage.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 20)
-            end)
-
-            function Section:Button(text, callback)
-                callback = callback or function() end
-                
-                local ButtonFrame = Utility:Create("Frame", {
-                    Name = "Button",
-                    Parent = SectionContent,
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(1, -20, 0, 30)
-                })
-                
-                local ButtonBtn = Utility:Create("TextButton", {
-                    Parent = ButtonFrame,
-                    BackgroundColor3 = Clarity.Theme.Background, -- Darker inside section
-                    Size = UDim2.new(1, 0, 1, 0),
-                    Font = Clarity.Theme.Font,
-                    Text = text,
-                    TextColor3 = Clarity.Theme.TextColor,
-                    TextSize = 13,
-                    AutoButtonColor = false
-                })
-                
-                Utility:Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ButtonBtn })
-                Utility:Create("UIStroke", { Parent = ButtonBtn, Color = Clarity.Theme.Outline, Thickness = 1 })
-                
-                ButtonBtn.MouseEnter:Connect(function()
-                   Utility:Tween(ButtonBtn, {0.2}, {BackgroundColor3 = Clarity.Theme.Hover}) 
-                end)
-                
-                ButtonBtn.MouseLeave:Connect(function()
-                    Utility:Tween(ButtonBtn, {0.2}, {BackgroundColor3 = Clarity.Theme.Background})
-                end)
-                
-                ButtonBtn.MouseButton1Click:Connect(function()
-                    callback()
-                    -- Ripple effect could go here
-                end)
-            end
-
-            function Section:Toggle(text, default, callback)
-                default = default or false
-                callback = callback or function() end
-                
-                Library.Flags[text] = default
-                
-                local ToggleFrame = Utility:Create("Frame", {
-                    Name = "Toggle",
-                    Parent = SectionContent,
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(1, -20, 0, 30)
-                })
-                
-                local ToggleBtn = Utility:Create("TextButton", {
-                     Parent = ToggleFrame,
-                     BackgroundTransparency = 1,
-                     Size = UDim2.new(1, 0, 1, 0),
-                     Text = "",
-                     AutoButtonColor = false
-                })
-                
-                local Label = Utility:Create("TextLabel", {
-                    Parent = ToggleBtn,
-                    BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 0, 0, 0),
-                    Size = UDim2.new(1, -50, 1, 0),
-                    Font = Clarity.Theme.Font,
-                    Text = text,
-                    TextColor3 = Clarity.Theme.TextColor,
-                    TextSize = 13,
-                    TextXAlignment = Enum.TextXAlignment.Left
-                })
-                
-                local Checkbox = Utility:Create("Frame", {
-                    Parent = ToggleBtn,
-                    AnchorPoint = Vector2.new(1, 0.5),
-                    Position = UDim2.new(1, 0, 0.5, 0),
-                    Size = UDim2.new(0, 20, 0, 20),
-                    BackgroundColor3 = default and Clarity.Theme.Accent or Clarity.Theme.Background
-                })
-                
-                Utility:Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = Checkbox })
-                local Stroke = Utility:Create("UIStroke", { Parent = Checkbox, Color = Clarity.Theme.Outline, Thickness = 1 })
-                
-                local function UpdateState(state)
-                    Library.Flags[text] = state
-                    Utility:Tween(Checkbox, {0.2}, {BackgroundColor3 = state and Clarity.Theme.Accent or Clarity.Theme.Background})
-                    callback(state)
-                end
-                
-                ToggleBtn.MouseButton1Click:Connect(function()
-                    default = not default
-                    UpdateState(default)
-                end)
-            end
-            
-            function Section:Slider(text, min, max, default, callback)
-                min = min or 0
-                max = max or 100
-                default = default or min
-                callback = callback or function() end
-                
-                Library.Flags[text] = default
-                
-                local SliderFrame = Utility:Create("Frame", {
-                    Name = "Slider",
-                    Parent = SectionContent,
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(1, -20, 0, 50)
-                })
-                
-                local Label = Utility:Create("TextLabel", {
-                    Parent = SliderFrame,
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(1, 0, 0, 20),
-                    Font = Clarity.Theme.Font,
-                    Text = text,
-                    TextColor3 = Clarity.Theme.TextColor,
-                    TextSize = 13,
-                    TextXAlignment = Enum.TextXAlignment.Left
-                })
-                
-                local ValueLabel = Utility:Create("TextLabel", {
-                    Parent = SliderFrame,
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(1, 0, 0, 20),
-                    Font = Clarity.Theme.Font,
-                    Text = tostring(default),
-                    TextColor3 = Clarity.Theme.TextColor,
-                    TextSize = 13,
-                    TextXAlignment = Enum.TextXAlignment.Right
-                })
-                
-                local Track = Utility:Create("Frame", {
-                    Parent = SliderFrame,
-                    BackgroundColor3 = Clarity.Theme.Background,
-                    Position = UDim2.new(0, 0, 0, 30),
-                    Size = UDim2.new(1, 0, 0, 6)
-                })
-                
-                Utility:Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = Track })
-                
-                local Fill = Utility:Create("Frame", {
-                    Parent = Track,
-                    BackgroundColor3 = Clarity.Theme.Accent,
-                    Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-                })
-                
-                Utility:Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = Fill })
-                
-                local DragBtn = Utility:Create("TextButton", {
-                    Parent = Track,
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(1, 0, 1, 0),
-                    Text = ""
-                })
-                
-                local dragging = false
-                
-                local function Update(input)
-                    local pos = UDim2.new(math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1), 0, 1, 0)
-                    Utility:Tween(Fill, {0.1}, {Size = pos})
-                    
-                    local value = math.floor(min + ((max - min) * pos.X.Scale))
-                    ValueLabel.Text = tostring(value)
-                    Library.Flags[text] = value
-                    callback(value)
-                end
-                
-                DragBtn.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                        dragging = true
-                        Update(input)
-                    end
-                end)
-                
-                UserInputService.InputEnded:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                        dragging = false
-                    end
-                end)
-                
-                UserInputService.InputChanged:Connect(function(input)
-                    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                        Update(input)
-                    end
-                end)
-            end
-
-            -- Color Picker, Dropdown, etc. can be added similarly with more frames and logic
-            -- Due to length constraints, I'm providing core structure + key components. 
-            -- I'll add simplified versions of Dropdown and Textbox.
-            
-            function Section:Textbox(text, placeholder, callback)
-                local BoxFrame = Utility:Create("Frame", {
-                   Parent = SectionContent,
-                   BackgroundTransparency = 1,
-                   Size = UDim2.new(1, -20, 0, 50) 
-                })
-                
-                local Label = Utility:Create("TextLabel", {
-                    Parent = BoxFrame,
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(1, 0, 0, 20),
-                    Font = Clarity.Theme.Font,
-                    Text = text,
-                    TextColor3 = Clarity.Theme.TextColor,
-                    TextSize = 13,
-                    TextXAlignment = Enum.TextXAlignment.Left
-                })
-                
-                local Input = Utility:Create("TextBox", {
-                    Parent = BoxFrame,
-                    BackgroundColor3 = Clarity.Theme.Background,
-                    Position = UDim2.new(0, 0, 0, 25),
-                    Size = UDim2.new(1, 0, 0, 25),
-                    Font = Clarity.Theme.Font,
-                    PlaceholderText = placeholder or "...",
-                    Text = "",
-                    TextColor3 = Clarity.Theme.TextColor,
-                    TextSize = 13
-                })
-                
-                Utility:Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = Input })
-                Utility:Create("UIStroke", { Parent = Input, Color = Clarity.Theme.Outline, Thickness = 1 })
-                
-                Input.FocusLost:Connect(function()
-                    callback(Input.Text)
-                end)
-            end
-
-            return Section
-        end
-        
-        return Tab
-    end
-
-    -- Dragging Logic
-    local dragging, dragInput, dragStart, startPos
-    
     local function update(input)
         local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-    
-    TopBar.InputBegan:Connect(function(input)
+
+    gui.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
-            startPos = MainFrame.Position
-            
+            startPos = gui.Position
+
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
@@ -647,28 +69,904 @@ function Clarity.new(options)
             end)
         end
     end)
-    
-    TopBar.InputChanged:Connect(function(input)
+
+    gui.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
-    
+
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             update(input)
         end
     end)
+end
+
+local function Tween(instance, properties, duration, direction, style)
+    local tweenInfo = TweenInfo.new(
+        duration or 0.3,
+        style or Enum.EasingStyle.Quart,
+        direction or Enum.EasingDirection.Out
+    )
+    local tween = TweenService:Create(instance, tweenInfo, properties)
+    tween:Play()
+    return tween
+end
+
+-- Core UI Creation
+function Clarity:CreateWindow(options)
+    options = options or {}
+    local windowName = options.Name or "Clarity UI"
+    local configConfig = options.Configuration or {} 
     
-    -- Keybind System (Toggle UI)
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == options.Keybind then
-            Library.Open = not Library.Open
-            ScreenGui.Enabled = Library.Open
+    -- Main ScreenGui
+    local ScreenGui = Create("ScreenGui", {
+        Name = "ClarityLib",
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true
+    })
+
+    -- Parent to safe container
+    if gethui then
+        ScreenGui.Parent = gethui()
+    elseif game:GetService("CoreGui") then
+        ScreenGui.Parent = game:GetService("CoreGui")
+    else
+        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    -- Main Container
+    local MainFrame = Create("Frame", {
+        Name = "MainFrame",
+        Parent = ScreenGui,
+        BackgroundColor3 = Clarity.Settings.Theme.Main,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, -275, 0.5, -175),
+        Size = UDim2.new(0, 550, 0, 350),
+        ClipsDescendants = true
+    })
+    
+    Create("UICorner", { CornerRadius = Clarity.Settings.CornerRadius, Parent = MainFrame })
+    Create("UIStroke", {
+        Parent = MainFrame,
+        Color = Clarity.Settings.Theme.Stroke,
+        Thickness = 1
+    })
+
+    MakeDraggable(MainFrame)
+
+    -- Sidebar (Left)
+    local Sidebar = Create("Frame", {
+        Name = "Sidebar",
+        Parent = MainFrame,
+        BackgroundColor3 = Clarity.Settings.Theme.Secondary,
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 160, 1, 0)
+    })
+    
+    Create("UICorner", { CornerRadius = Clarity.Settings.CornerRadius, Parent = Sidebar })
+    
+    -- Fix Sidebar Corner (Right Side needs to be straight mostly, but we can just overlay)
+    local SidebarCover = Create("Frame", {
+        Name = "Cover",
+        Parent = Sidebar,
+        BackgroundColor3 = Clarity.Settings.Theme.Secondary,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, -10, 0, 0),
+        Size = UDim2.new(0, 10, 1, 0),
+        ZIndex = 1
+    })
+
+    -- Title
+    local TitleLabel = Create("TextLabel", {
+        Name = "Title",
+        Parent = Sidebar,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 15, 0, 15),
+        Size = UDim2.new(1, -30, 0, 25),
+        Font = Clarity.Settings.FontBold,
+        Text = windowName,
+        TextColor3 = Clarity.Settings.Theme.Text,
+        TextSize = 18,
+        TextXAlignment = Enum.TextXAlignment.Left
+    })
+
+    -- Tab Container
+    local TabContainer = Create("ScrollingFrame", {
+        Name = "TabContainer",
+        Parent = Sidebar,
+        Active = true,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 60),
+        Size = UDim2.new(1, 0, 1, -70),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollBarThickness = 2,
+        ScrollBarImageColor3 = Clarity.Settings.Theme.Accent
+    })
+    
+    Create("UIListLayout", {
+        Parent = TabContainer,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 5)
+    })
+    
+    Create("UIPadding", {
+        Parent = TabContainer,
+        PaddingLeft = UDim.new(0, 10),
+        PaddingRight = UDim.new(0, 10)
+    })
+
+    -- Content Area (Right)
+    local ContentArea = Create("Frame", {
+        Name = "ContentArea",
+        Parent = MainFrame,
+        BackgroundColor3 = Clarity.Settings.Theme.Main,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 160, 0, 0),
+        Size = UDim2.new(1, -160, 1, 0)
+    })
+    
+    local PagesFolder = Create("Folder", { Name = "Pages", Parent = ContentArea })
+
+    -- Window Object
+    local Window = {}
+    local FirstTab = true
+
+    function Window:CreateTab(name, icon)
+        local Tab = {}
+        
+        -- Tab Button
+        local TabButton = Create("TextButton", {
+            Name = name .. "Tab",
+            Parent = TabContainer,
+            BackgroundColor3 = Clarity.Settings.Theme.Main,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 0, 32),
+            Font = Clarity.Settings.Font,
+            Text = "",
+            AutoButtonColor = false
+        })
+        
+        Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = TabButton })
+
+        local TabLabel = Create("TextLabel", {
+            Name = "Label",
+            Parent = TabButton,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 10, 0, 0), -- Icon offset here if needed
+            Size = UDim2.new(1, -10, 1, 0),
+            Font = Clarity.Settings.Font,
+            Text = name,
+            TextColor3 = Clarity.Settings.Theme.TextDark,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left
+        })
+
+        if icon then
+            -- Implement icon logic if needed
+            -- Adjust TabLabel position
+        end
+
+        -- Page Container
+        local Page = Create("ScrollingFrame", {
+            Name = name .. "Page",
+            Parent = PagesFolder,
+            Active = true,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 0, 0),
+            Size = UDim2.new(1, 0, 1, 0),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = Clarity.Settings.Theme.Accent,
+            Visible = false
+        })
+        
+        Create("UIPadding", {
+            Parent = Page,
+            PaddingTop = UDim.new(0, 15),
+            PaddingLeft = UDim.new(0, 15),
+            PaddingRight = UDim.new(0, 15),
+            PaddingBottom = UDim.new(0, 15)
+        })
+        
+        local PageLayout = Create("UIListLayout", {
+            Parent = Page,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 10)
+        })
+
+        -- Auto resize canvas
+        PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            Page.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 30)
+        end)
+
+        -- Tab Selection Logic
+        local function Activate()
+            for _, p in pairs(PagesFolder:GetChildren()) do
+                p.Visible = false
+            end
+            Page.Visible = true
+
+            for _, t in pairs(TabContainer:GetChildren()) do
+                if t:IsA("TextButton") then
+                    Tween(t.Label, {TextColor3 = Clarity.Settings.Theme.TextDark}, 0.2)
+                    Tween(t, {BackgroundTransparency = 1}, 0.2)
+                end
+            end
+            
+            Tween(TabLabel, {TextColor3 = Clarity.Settings.Theme.Text}, 0.2)
+            Tween(TabButton, {BackgroundTransparency = 0}, 0.2)
+            Tween(TabButton, {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}, 0.2) -- Active Tab BG
+        end
+
+        TabButton.MouseButton1Click:Connect(Activate)
+
+        if FirstTab then
+            FirstTab = false
+            Activate()
+        end
+
+        -- Section Logic
+        function Tab:CreateSection(sectionName)
+            local Section = {}
+            
+            local SectionFrame = Create("Frame", {
+                Name = sectionName .. "Section",
+                Parent = Page,
+                BackgroundColor3 = Clarity.Settings.Theme.Secondary,
+                BorderSizePixel = 0,
+                Size = UDim2.new(1, 0, 0, 0), -- Auto Resize
+                ClipsDescendants = true
+            })
+
+            Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = SectionFrame })
+            Create("UIStroke", {
+                Parent = SectionFrame,
+                Color = Clarity.Settings.Theme.Stroke,
+                Thickness = 1
+            })
+
+            local SectionTitle = Create("TextLabel", {
+                Name = "Title",
+                Parent = SectionFrame,
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 10, 0, 8),
+                Size = UDim2.new(1, -20, 0, 20),
+                Font = Clarity.Settings.FontBold,
+                Text = sectionName,
+                TextColor3 = Clarity.Settings.Theme.Text,
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left
+            })
+
+            local Container = Create("Frame", {
+                Name = "Container",
+                Parent = SectionFrame,
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 0, 0, 35),
+                Size = UDim2.new(1, 0, 0, 0)
+            })
+
+            local ContainerLayout = Create("UIListLayout", {
+                Parent = Container,
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Padding = UDim.new(0, 6)
+            })
+
+            Create("UIPadding", {
+                Parent = Container,
+                PaddingLeft = UDim.new(0, 10),
+                PaddingRight = UDim.new(0, 10),
+                PaddingBottom = UDim.new(0, 10)
+            })
+
+            -- Resize Section Height
+            local function UpdateSize()
+                local contentSize = ContainerLayout.AbsoluteContentSize.Y
+                Container.Size = UDim2.new(1, 0, 0, contentSize)
+                Tween(SectionFrame, {Size = UDim2.new(1, 0, 0, contentSize + 45)}, 0.2)
+            end
+            
+            ContainerLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateSize)
+            
+            -- ELEMENTS
+            
+            -- Button
+            function Section:CreateButton(cfg)
+                local btnName = cfg.Name or "Button"
+                local callback = cfg.Callback or function() end
+
+                local ButtonFrame = Create("TextButton", {
+                    Name = "Button",
+                    Parent = Container,
+                    BackgroundColor3 = Clarity.Settings.Theme.Main,
+                    BorderSizePixel = 0,
+                    Size = UDim2.new(1, 0, 0, 32),
+                    Font = Clarity.Settings.Font,
+                    Text = "",
+                    AutoButtonColor = false
+                })
+
+                Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ButtonFrame })
+                Create("UIStroke", {
+                    Parent = ButtonFrame,
+                    Color = Clarity.Settings.Theme.Stroke,
+                    Thickness = 1
+                })
+
+                local BtnStartColor = Clarity.Settings.Theme.Main
+                local BtnHoverColor = Color3.fromRGB(30, 30, 30)
+
+                local Title = Create("TextLabel", {
+                    Parent = ButtonFrame,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 1, 0),
+                    Font = Clarity.Settings.Font,
+                    Text = btnName,
+                    TextColor3 = Clarity.Settings.Theme.Text,
+                    TextSize = 13
+                })
+
+                ButtonFrame.MouseEnter:Connect(function()
+                     Tween(ButtonFrame, {BackgroundColor3 = BtnHoverColor}, 0.2)
+                end)
+
+                ButtonFrame.MouseLeave:Connect(function()
+                    Tween(ButtonFrame, {BackgroundColor3 = BtnStartColor}, 0.2)
+                end)
+
+                ButtonFrame.MouseButton1Click:Connect(function()
+                    Tween(Title, {TextSize = 11}, 0.1)
+                    wait(0.1)
+                    Tween(Title, {TextSize = 13}, 0.1)
+                    callback()
+                end)
+            end
+
+            -- Toggle
+            function Section:CreateToggle(cfg)
+                local toggleName = cfg.Name or "Toggle"
+                local default = cfg.Default or false
+                local callback = cfg.Callback or function() end
+
+                local currentState = default
+
+                local ToggleFrame = Create("TextButton", {
+                    Name = "Toggle",
+                    Parent = Container,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 32),
+                    Text = "",
+                    AutoButtonColor = false
+                })
+
+                local Title = Create("TextLabel", {
+                    Parent = ToggleFrame,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(0, 0, 0, 0),
+                    Size = UDim2.new(0.8, 0, 1, 0),
+                    Font = Clarity.Settings.Font,
+                    Text = toggleName,
+                    TextColor3 = Clarity.Settings.Theme.Text,
+                    TextSize = 13,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })
+
+                local SwitchBg = Create("Frame", {
+                    Parent = ToggleFrame,
+                    BackgroundColor3 = currentState and Clarity.Settings.Theme.Accent or Color3.fromRGB(60, 60, 60),
+                    BorderSizePixel = 0,
+                    Position = UDim2.new(1, -40, 0.5, -10),
+                    Size = UDim2.new(0, 40, 0, 20)
+                })
+                
+                Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = SwitchBg })
+
+                local SwitchCircle = Create("Frame", {
+                    Parent = SwitchBg,
+                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                    BorderSizePixel = 0,
+                    Position = currentState and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+                    Size = UDim2.new(0, 16, 0, 16)
+                })
+                
+                Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = SwitchCircle })
+
+                local function UpdateToggle()
+                    Tween(SwitchBg, {BackgroundColor3 = currentState and Clarity.Settings.Theme.Accent or Color3.fromRGB(60, 60, 60)}, 0.2)
+                    Tween(SwitchCircle, {Position = currentState and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)}, 0.2)
+                    callback(currentState)
+                end
+
+                ToggleFrame.MouseButton1Click:Connect(function()
+                    currentState = not currentState
+                    UpdateToggle()
+                end)
+                
+                -- Initialize (run callback initially if needed, usually better not to unless explicit)
+                -- callback(currentState)
+            end
+
+            -- Slider
+            function Section:CreateSlider(cfg)
+                local sliderName = cfg.Name or "Slider"
+                local minVal = cfg.Min or 0
+                local maxVal = cfg.Max or 100
+                local defaultVal = cfg.Default or minVal
+                local callback = cfg.Callback or function() end
+
+                local Value = defaultVal
+
+                local SliderFrame = Create("Frame", {
+                    Name = "Slider",
+                    Parent = Container,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 45)
+                })
+
+                local Title = Create("TextLabel", {
+                    Parent = SliderFrame,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 20),
+                    Font = Clarity.Settings.Font,
+                    Text = sliderName,
+                    TextColor3 = Clarity.Settings.Theme.Text,
+                    TextSize = 13,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })
+
+                local ValueLabel = Create("TextLabel", {
+                    Parent = SliderFrame,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 20),
+                    Font = Clarity.Settings.Font,
+                    Text = tostring(Value),
+                    TextColor3 = Clarity.Settings.Theme.TextDark,
+                    TextSize = 13,
+                    TextXAlignment = Enum.TextXAlignment.Right
+                })
+
+                local SliderBg = Create("Frame", {
+                    Parent = SliderFrame,
+                    BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+                    BorderSizePixel = 0,
+                    Position = UDim2.new(0, 0, 0, 28),
+                    Size = UDim2.new(1, 0, 0, 6)
+                })
+                
+                Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = SliderBg })
+
+                local SliderFill = Create("Frame", {
+                    Parent = SliderBg,
+                    BackgroundColor3 = Clarity.Settings.Theme.Accent,
+                    BorderSizePixel = 0,
+                    Size = UDim2.new((Value - minVal) / (maxVal - minVal), 0, 1, 0)
+                })
+                
+                Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = SliderFill })
+
+                local dragging = false
+
+                local function UpdateSlider(input)
+                    local pos = UDim2.new(math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1), 0, 1, 0)
+                    local preciseValue = minVal + ((maxVal - minVal) * pos.X.Scale)
+                    Value = math.floor(preciseValue) -- Integer slider by default
+                    
+                    Tween(SliderFill, {Size = pos}, 0.1)
+                    ValueLabel.Text = tostring(Value)
+                    callback(Value)
+                end
+
+                SliderBg.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        dragging = true
+                        UpdateSlider(input)
+                    end
+                end)
+
+                UserInputService.InputChanged:Connect(function(input)
+                    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                        UpdateSlider(input)
+                    end
+                end)
+
+                UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        dragging = false
+                    end
+                end)
+            end
+
+            -- Textbox
+            function Section:CreateInput(cfg)
+                local inputName = cfg.Name or "Input"
+                local placeholder = cfg.Placeholder or "Type here..."
+                local callback = cfg.Callback or function() end
+
+                local InputFrame = Create("Frame", {
+                    Name = "Input",
+                    Parent = Container,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 45)
+                })
+
+                local Title = Create("TextLabel", {
+                    Parent = InputFrame,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 20),
+                    Font = Clarity.Settings.Font,
+                    Text = inputName,
+                    TextColor3 = Clarity.Settings.Theme.Text,
+                    TextSize = 13,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })
+
+                local InputBg = Create("Frame", {
+                    Parent = InputFrame,
+                    BackgroundColor3 = Clarity.Settings.Theme.Main,
+                    BorderSizePixel = 0,
+                    Position = UDim2.new(0, 0, 0, 25),
+                    Size = UDim2.new(1, 0, 0, 30)
+                })
+                
+                Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = InputBg })
+                Create("UIStroke", { Parent = InputBg, Color = Clarity.Settings.Theme.Stroke, Thickness = 1 })
+
+                local TextBox = Create("TextBox", {
+                    Parent = InputBg,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(0, 8, 0, 0),
+                    Size = UDim2.new(1, -16, 1, 0),
+                    Font = Clarity.Settings.Font,
+                    PlaceholderText = placeholder,
+                    Text = "",
+                    TextColor3 = Clarity.Settings.Theme.Text,
+                    PlaceholderColor3 = Clarity.Settings.Theme.TextDark,
+                    TextSize = 13,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ClearTextOnFocus = false
+                })
+
+                TextBox.FocusLost:Connect(function(enterPressed)
+                    callback(TextBox.Text)
+                end)
+            end
+            
+            -- Dropdown
+            function Section:CreateDropdown(cfg)
+                local dropdownName = cfg.Name or "Dropdown"
+                local options = cfg.Options or {}
+                local default = cfg.Default or options[1]
+                local callback = cfg.Callback or function() end
+                
+                local Dropdown = {}
+                local expanded = false
+                
+                local DropdownFrame = Create("Frame", {
+                    Name = "Dropdown",
+                    Parent = Container,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 50),
+                    ClipsDescendants = true
+                })
+                
+                local Title = Create("TextLabel", {
+                    Parent = DropdownFrame,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 20),
+                    Font = Clarity.Settings.Font,
+                    Text = dropdownName,
+                    TextColor3 = Clarity.Settings.Theme.Text,
+                    TextSize = 13,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })
+
+                local MainBtn = Create("TextButton", {
+                    Parent = DropdownFrame,
+                    BackgroundColor3 = Clarity.Settings.Theme.Main,
+                    BorderSizePixel = 0,
+                    Position = UDim2.new(0, 0, 0, 25),
+                    Size = UDim2.new(1, 0, 0, 30),
+                    AutoButtonColor = false,
+                    Text = ""
+                })
+                
+                Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = MainBtn })
+                Create("UIStroke", { Parent = MainBtn, Color = Clarity.Settings.Theme.Stroke, Thickness = 1 })
+                
+                local SelectedLabel = Create("TextLabel", {
+                    Parent = MainBtn,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(0, 10, 0, 0),
+                    Size = UDim2.new(1, -30, 1, 0),
+                    Font = Clarity.Settings.Font,
+                    Text = default or "Select...",
+                    TextColor3 = Clarity.Settings.Theme.Text,
+                    TextSize = 13,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })
+                
+                local Icon = Create("ImageLabel", {
+                    Parent = MainBtn,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(1, -25, 0.5, -10),
+                    Size = UDim2.new(0, 20, 0, 20),
+                    Image = "rbxassetid://6034818372", -- Arrow down
+                    ImageColor3 = Clarity.Settings.Theme.TextDark
+                })
+                
+                local OptionsContainer = Create("Frame", {
+                    Parent = DropdownFrame,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(0, 0, 0, 60),
+                    Size = UDim2.new(1, 0, 0, 0),
+                    ClipsDescendants = true
+                })
+                
+                local OptionsLayout = Create("UIListLayout", {
+                    Parent = OptionsContainer,
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                    Padding = UDim.new(0, 2)
+                })
+                
+                local function RenderOptions()
+                    for _, child in pairs(OptionsContainer:GetChildren()) do
+                        if child:IsA("TextButton") then child:Destroy() end
+                    end
+                    
+                    for _, opt in pairs(options) do
+                        local OptBtn = Create("TextButton", {
+                            Parent = OptionsContainer,
+                            BackgroundColor3 = Clarity.Settings.Theme.Main,
+                            BackgroundTransparency = 0.5,
+                            BorderSizePixel = 0,
+                            Size = UDim2.new(1, 0, 0, 25),
+                            Font = Clarity.Settings.Font,
+                            Text = opt,
+                            TextColor3 = Clarity.Settings.Theme.TextDark,
+                            TextSize = 13
+                        })
+                        Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = OptBtn })
+                        
+                        OptBtn.MouseButton1Click:Connect(function()
+                            SelectedLabel.Text = opt
+                            expanded = false
+                            Tween(DropdownFrame, {Size = UDim2.new(1, 0, 0, 50)}, 0.2)
+                            Tween(Icon, {Rotation = 0}, 0.2)
+                            callback(opt)
+                        end)
+                    end
+                end
+                
+                RenderOptions()
+                
+                MainBtn.MouseButton1Click:Connect(function()
+                    expanded = not expanded
+                    if expanded then
+                        local optionsHeight = (#options * 27)
+                        Tween(DropdownFrame, {Size = UDim2.new(1, 0, 0, 60 + optionsHeight)}, 0.2)
+                        OptionsContainer.Size = UDim2.new(1, 0, 0, optionsHeight)
+                        Tween(Icon, {Rotation = 180}, 0.2)
+                    else
+                        Tween(DropdownFrame, {Size = UDim2.new(1, 0, 0, 50)}, 0.2)
+                        Tween(Icon, {Rotation = 0}, 0.2)
+                    end
+                end)
+                
+                function Dropdown:Refresh(newOptions)
+                    options = newOptions
+                    RenderOptions()
+                end
+                
+                return Dropdown
+            end
+            
+            -- Color Picker (Simple implementation)
+            -- Note: A full color picker is complex, this is a simplified version or placeholder
+            function Section:CreateColorPicker(cfg)
+                 -- Basic implementation for now
+                 local cpName = cfg.Name or "Color"
+                 local default = cfg.Default or Color3.new(1,1,1)
+                 local callback = cfg.Callback or function() end
+                 
+                 local PickerFrame = Create("Frame", {
+                     Parent = Container,
+                     BackgroundTransparency = 1,
+                     Size = UDim2.new(1, 0, 0, 32)
+                 })
+                 
+                 local Title = Create("TextLabel", {
+                     Parent = PickerFrame,
+                     BackgroundTransparency = 1,
+                     Size = UDim2.new(0.7, 0, 1, 0),
+                     Font = Clarity.Settings.Font,
+                     Text = cpName,
+                     TextColor3 = Clarity.Settings.Theme.Text,
+                     TextSize = 13,
+                     TextXAlignment = Enum.TextXAlignment.Left
+                 })
+                 
+                 local ColorDisplay = Create("TextButton", {
+                     Parent = PickerFrame,
+                     BackgroundColor3 = default,
+                     Position = UDim2.new(1, -40, 0, 4),
+                     Size = UDim2.new(0, 40, 0, 24),
+                     Text = "",
+                     AutoButtonColor = false
+                 })
+                 
+                 Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ColorDisplay })
+                 Create("UIStroke", { Parent = ColorDisplay, Color = Clarity.Settings.Theme.Stroke, Thickness = 1 })
+                 
+                 -- Interactivity Logic would go here (popup a color wheel, etc.)
+                 -- For this snippet, we'll keep it simple or expand later if requested.
+                 
+                 ColorDisplay.MouseButton1Click:Connect(function()
+                    -- Expand color picker logic
+                 end)
+            end
+
+            -- Keybind
+            function Section:CreateKeybind(cfg)
+                local keybindName = cfg.Name or "Keybind"
+                local default = cfg.Default or Enum.KeyCode.E
+                local callback = cfg.Callback or function() end
+
+                local waiting = false
+                local currentKey = default
+
+                local KeybindFrame = Create("Frame", {
+                    Name = "Keybind",
+                    Parent = Container,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 32)
+                })
+
+                local Title = Create("TextLabel", {
+                    Parent = KeybindFrame,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(0.6, 0, 1, 0),
+                    Font = Clarity.Settings.Font,
+                    Text = keybindName,
+                    TextColor3 = Clarity.Settings.Theme.Text,
+                    TextSize = 13,
+                    TextXAlignment = Enum.TextXAlignment.Left
+                })
+
+                local KeyDisplay = Create("TextButton", {
+                    Parent = KeybindFrame,
+                    BackgroundColor3 = Clarity.Settings.Theme.Main,
+                    Position = UDim2.new(0.63, 0, 0.15, 0),
+                    Size = UDim2.new(0.37, 0, 0.7, 0),
+                    Font = Clarity.Settings.Font,
+                    Text = currentKey.Name,
+                    TextColor3 = Clarity.Settings.Theme.TextDark,
+                    TextSize = 12,
+                    AutoButtonColor = false
+                })
+                
+                Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = KeyDisplay })
+                Create("UIStroke", { Parent = KeyDisplay, Color = Clarity.Settings.Theme.Stroke, Thickness = 1 })
+
+                KeyDisplay.MouseButton1Click:Connect(function()
+                    waiting = true
+                    KeyDisplay.Text = "..."
+                end)
+
+                UserInputService.InputBegan:Connect(function(input)
+                    if waiting then
+                       if input.UserInputType == Enum.UserInputType.Keyboard then
+                           if input.KeyCode ~= Enum.KeyCode.Escape then
+                               currentKey = input.KeyCode
+                               KeyDisplay.Text = currentKey.Name
+                               callback(currentKey)
+                           else
+                               KeyDisplay.Text = currentKey.Name
+                           end
+                           waiting = false
+                       end
+                    end
+                end)
+            end
+
+            return Section
+        end
+
+        return Tab
+    end
+
+    -- Close Logic
+    UserInputService.InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.RightControl then
+            Clarity.Opened = not Clarity.Opened
+            ScreenGui.Enabled = Clarity.Opened
         end
     end)
 
-    return Library
+    return Window
+end
+
+-- Notification System
+function Clarity:Notify(options)
+    -- To be implemented: A nice notification appearing at bottom right
+    options = options or {}
+    local Title = options.Title or "Notification"
+    local Content = options.Content or "Message"
+    local Duration = options.Duration or 3
+    
+    -- Check for existing container
+    local NotifyGui = game.CoreGui:FindFirstChild("ClarityNotify")
+    if not NotifyGui then
+        NotifyGui = Create("ScreenGui", { Name = "ClarityNotify", Parent = game.CoreGui })
+    end
+    
+    local container = NotifyGui:FindFirstChild("Container")
+    if not container then
+        container = Create("Frame", {
+            Name = "Container",
+            Parent = NotifyGui,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(1, -320, 1, -20),
+            Size = UDim2.new(0, 300, 1, 0),
+            AnchorPoint = Vector2.new(0, 1)
+        })
+        Create("UIListLayout", {
+            Parent = container,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            VerticalAlignment = Enum.VerticalAlignment.Bottom,
+            Padding = UDim.new(0, 10)
+        })
+    end
+    
+    local NotifyFrame = Create("Frame", {
+        Parent = container,
+        BackgroundColor3 = Clarity.Settings.Theme.Main,
+        Size = UDim2.new(1, 0, 0, 0), -- Animated height
+        ClipsDescendants = true
+    })
+    
+    Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = NotifyFrame })
+    Create("UIStroke", { Parent = NotifyFrame, Color = Clarity.Settings.Theme.Stroke, Thickness = 1 })
+    
+    local NotifyTitle = Create("TextLabel", {
+        Parent = NotifyFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 10, 0, 8),
+        Size = UDim2.new(1, -20, 0, 20),
+        Font = Clarity.Settings.FontBold,
+        Text = Title,
+        TextColor3 = Clarity.Settings.Theme.Text,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left
+    })
+    
+    local NotifyContent = Create("TextLabel", {
+        Parent = NotifyFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 10, 0, 28),
+        Size = UDim2.new(1, -20, 0, 40),
+        Font = Clarity.Settings.Font,
+        Text = Content,
+        TextColor3 = Clarity.Settings.Theme.TextDark,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextWrapped = true
+    })
+    
+    -- Animation
+    Tween(NotifyFrame, {Size = UDim2.new(1, 0, 0, 80)}, 0.3)
+    
+    task.delay(Duration, function()
+        Tween(NotifyFrame, {Size = UDim2.new(1, 0, 0, 0)}, 0.3).Completed:Connect(function()
+            NotifyFrame:Destroy()
+        end)
+    end)
 end
 
 return Clarity
