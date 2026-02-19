@@ -29,7 +29,8 @@ local Clarity = {
         TextSize = 14,
         CornerRadius = UDim.new(0, 6)
     },
-    Opened = true
+    Opened = true,
+    Config = {}
 }
 
 -- Utility Functions
@@ -434,8 +435,16 @@ function Clarity:CreateWindow(options)
                 local toggleName = cfg.Name or "Toggle"
                 local default = cfg.Default or false
                 local callback = cfg.Callback or function() end
+                local flag = cfg.Flag
 
                 local currentState = default
+                if flag then
+                    if Clarity.Config[flag] ~= nil then
+                        currentState = Clarity.Config[flag]
+                    else
+                        Clarity.Config[flag] = currentState
+                    end
+                end
 
                 local ToggleFrame = Create("TextButton", {
                     Name = "Toggle",
@@ -481,6 +490,7 @@ function Clarity:CreateWindow(options)
                 local function UpdateToggle()
                     Tween(SwitchBg, {BackgroundColor3 = currentState and Clarity.Settings.Theme.Accent or Color3.fromRGB(60, 60, 60)}, 0.2)
                     Tween(SwitchCircle, {Position = currentState and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)}, 0.2)
+                    if flag then Clarity.Config[flag] = currentState end
                     callback(currentState)
                 end
 
@@ -500,8 +510,16 @@ function Clarity:CreateWindow(options)
                 local maxVal = cfg.Max or 100
                 local defaultVal = cfg.Default or minVal
                 local callback = cfg.Callback or function() end
+                local flag = cfg.Flag
 
                 local Value = defaultVal
+                if flag then
+                    if Clarity.Config[flag] ~= nil then
+                        Value = Clarity.Config[flag]
+                    else
+                        Clarity.Config[flag] = Value
+                    end
+                end
 
                 local SliderFrame = Create("Frame", {
                     Name = "Slider",
@@ -560,6 +578,7 @@ function Clarity:CreateWindow(options)
                     
                     Tween(SliderFill, {Size = pos}, 0.1)
                     ValueLabel.Text = tostring(Value)
+                    if flag then Clarity.Config[flag] = Value end
                     callback(Value)
                 end
 
@@ -588,7 +607,8 @@ function Clarity:CreateWindow(options)
                 local inputName = cfg.Name or "Input"
                 local placeholder = cfg.Placeholder or "Type here..."
                 local callback = cfg.Callback or function() end
-
+                local flag = cfg.Flag
+                
                 local InputFrame = Create("Frame", {
                     Name = "Input",
                     Parent = Container,
@@ -634,6 +654,7 @@ function Clarity:CreateWindow(options)
                 })
 
                 TextBox.FocusLost:Connect(function(enterPressed)
+                    if flag then Clarity.Config[flag] = TextBox.Text end
                     callback(TextBox.Text)
                 end)
             end
@@ -643,11 +664,22 @@ function Clarity:CreateWindow(options)
                 local dropdownName = cfg.Name or "Dropdown"
                 local options = cfg.Options or {}
                 local default = cfg.Default or options[1]
+                local multi = cfg.Multi or false
                 local callback = cfg.Callback or function() end
+                local flag = cfg.Flag
                 
                 local Dropdown = {}
                 local expanded = false
-                
+                local selected = multi and (type(default) == "table" and default or {default}) or default
+
+                if flag then
+                    if Clarity.Config[flag] ~= nil then
+                        selected = Clarity.Config[flag]
+                    else
+                        Clarity.Config[flag] = selected
+                    end
+                end
+
                 local DropdownFrame = Create("Frame", {
                     Name = "Dropdown",
                     Parent = Container,
@@ -686,7 +718,7 @@ function Clarity:CreateWindow(options)
                     Position = UDim2.new(0, 10, 0, 0),
                     Size = UDim2.new(1, -30, 1, 0),
                     Font = Clarity.Settings.Font,
-                    Text = default or "Select...",
+                    Text = multi and table.concat(selected, ", ") or selected,
                     TextColor3 = Clarity.Settings.Theme.Text,
                     TextSize = 13,
                     TextXAlignment = Enum.TextXAlignment.Left
@@ -735,11 +767,24 @@ function Clarity:CreateWindow(options)
                         Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = OptBtn })
                         
                         OptBtn.MouseButton1Click:Connect(function()
-                            SelectedLabel.Text = opt
-                            expanded = false
-                            Tween(DropdownFrame, {Size = UDim2.new(1, 0, 0, 50)}, 0.2)
-                            Tween(Icon, {Rotation = 0}, 0.2)
-                            callback(opt)
+                            if multi then
+                                if table.find(selected, opt) then
+                                    table.remove(selected, table.find(selected, opt))
+                                else
+                                    table.insert(selected, opt)
+                                end
+                                SelectedLabel.Text = table.concat(selected, ", ")
+                                if flag then Clarity.Config[flag] = selected end
+                                callback(selected)
+                            else
+                                selected = opt
+                                SelectedLabel.Text = opt
+                                expanded = false
+                                Tween(DropdownFrame, {Size = UDim2.new(1, 0, 0, 50)}, 0.2)
+                                Tween(Icon, {Rotation = 0}, 0.2)
+                                if flag then Clarity.Config[flag] = selected end
+                                callback(opt)
+                            end
                         end)
                     end
                 end
@@ -767,24 +812,38 @@ function Clarity:CreateWindow(options)
                 return Dropdown
             end
             
-            -- Color Picker (Simple implementation)
-            -- Note: A full color picker is complex, this is a simplified version or placeholder
+            -- Color Picker
             function Section:CreateColorPicker(cfg)
-                 -- Basic implementation for now
                  local cpName = cfg.Name or "Color"
                  local default = cfg.Default or Color3.new(1,1,1)
                  local callback = cfg.Callback or function() end
+                 local flag = cfg.Flag
+                 
+                 local currentColor = default
+                 if flag then
+                     if Clarity.Config[flag] ~= nil then
+                        local colCfg = Clarity.Config[flag]
+                        if typeof(colCfg) == "table" then
+                            currentColor = Color3.fromRGB(colCfg[1], colCfg[2], colCfg[3])
+                        else
+                            currentColor = colCfg
+                        end
+                     else
+                        Clarity.Config[flag] = {math.floor(currentColor.R*255), math.floor(currentColor.G*255), math.floor(currentColor.B*255)}
+                     end
+                 end
                  
                  local PickerFrame = Create("Frame", {
                      Parent = Container,
                      BackgroundTransparency = 1,
-                     Size = UDim2.new(1, 0, 0, 32)
+                     Size = UDim2.new(1, 0, 0, 32),
+                     ClipsDescendants = true
                  })
                  
                  local Title = Create("TextLabel", {
                      Parent = PickerFrame,
                      BackgroundTransparency = 1,
-                     Size = UDim2.new(0.7, 0, 1, 0),
+                     Size = UDim2.new(0.6, 0, 0, 32),
                      Font = Clarity.Settings.Font,
                      Text = cpName,
                      TextColor3 = Clarity.Settings.Theme.Text,
@@ -792,23 +851,107 @@ function Clarity:CreateWindow(options)
                      TextXAlignment = Enum.TextXAlignment.Left
                  })
                  
-                 local ColorDisplay = Create("TextButton", {
+                 local ColorButton = Create("TextButton", {
                      Parent = PickerFrame,
-                     BackgroundColor3 = default,
+                     BackgroundColor3 = currentColor,
                      Position = UDim2.new(1, -40, 0, 4),
                      Size = UDim2.new(0, 40, 0, 24),
                      Text = "",
                      AutoButtonColor = false
                  })
                  
-                 Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ColorDisplay })
-                 Create("UIStroke", { Parent = ColorDisplay, Color = Clarity.Settings.Theme.Stroke, Thickness = 1 })
+                 Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = ColorButton })
+                 Create("UIStroke", { Parent = ColorButton, Color = Clarity.Settings.Theme.Stroke, Thickness = 1 })
+
+                 -- Expanded logic
+                 local expanded = false
+                 local SlidersFrame = Create("Frame", {
+                     Parent = PickerFrame,
+                     BackgroundTransparency = 1,
+                     Position = UDim2.new(0, 0, 0, 35),
+                     Size = UDim2.new(1, 0, 0, 100),
+                     Visible = true
+                 })
                  
-                 -- Interactivity Logic would go here (popup a color wheel, etc.)
-                 -- For this snippet, we'll keep it simple or expand later if requested.
+                 local function CreateRGBSlider(name, yPos, colorVal, updateFunc)
+                     local SFrame = Create("Frame", {
+                         Parent = SlidersFrame,
+                         BackgroundTransparency = 1,
+                         Position = UDim2.new(0, 0, 0, yPos),
+                         Size = UDim2.new(1, 0, 0, 30)
+                     })
+                     
+                     local SLabel = Create("TextLabel", {
+                         Parent = SFrame,
+                         BackgroundTransparency = 1,
+                         Size = UDim2.new(0, 20, 1, 0),
+                         Text = name,
+                         TextColor3 = Clarity.Settings.Theme.Text,
+                         Font = Clarity.Settings.Font,
+                         TextSize = 12
+                     })
+                     
+                     local SBg = Create("Frame", {
+                         Parent = SFrame,
+                         BackgroundColor3 = Color3.fromRGB(60,60,60),
+                         BorderSizePixel = 0,
+                         Position = UDim2.new(0, 25, 0.5, -2),
+                         Size = UDim2.new(1, -30, 0, 4)
+                     })
+                     Create("UICorner", { CornerRadius = UDim.new(1,0), Parent = SBg })
+                     
+                     local SFill = Create("Frame", {
+                         Parent = SBg,
+                         BackgroundColor3 = name == "R" and Color3.new(1,0.2,0.2) or (name == "G" and Color3.new(0.2,1,0.2) or Color3.new(0.2,0.2,1)),
+                         BorderSizePixel = 0,
+                         Size = UDim2.new(colorVal, 0, 1, 0)
+                     })
+                     Create("UICorner", { CornerRadius = UDim.new(1,0), Parent = SFill })
+                     
+                     local sDragging = false
+                     
+                     local function update(input)
+                         local pos = math.clamp((input.Position.X - SBg.AbsolutePosition.X) / SBg.AbsoluteSize.X, 0, 1)
+                         SFill.Size = UDim2.new(pos, 0, 1, 0)
+                         updateFunc(pos)
+                     end
+                     
+                     SBg.InputBegan:Connect(function(input)
+                         if input.UserInputType == Enum.UserInputType.MouseButton1 then sDragging = true; update(input) end
+                     end)
+                     UserInputService.InputChanged:Connect(function(input)
+                         if sDragging and input.UserInputType == Enum.UserInputType.MouseMovement then update(input) end
+                     end)
+                     UserInputService.InputEnded:Connect(function(input)
+                         if input.UserInputType == Enum.UserInputType.MouseButton1 then sDragging = false end
+                     end)
+                     
+                     return SFill -- Return to update externally if needed
+                 end
+
+                 local rVal, gVal, bVal = currentColor.R, currentColor.G, currentColor.B
+
+                 local function UpdateColor()
+                     currentColor = Color3.new(rVal, gVal, bVal)
+                     ColorButton.BackgroundColor3 = currentColor
+                     
+                     if flag then 
+                        Clarity.Config[flag] = {math.floor(rVal*255), math.floor(gVal*255), math.floor(bVal*255)}
+                     end
+                     callback(currentColor)
+                 end
+
+                 CreateRGBSlider("R", 0, rVal, function(v) rVal = v; UpdateColor() end)
+                 CreateRGBSlider("G", 35, gVal, function(v) gVal = v; UpdateColor() end)
+                 CreateRGBSlider("B", 70, bVal, function(v) bVal = v; UpdateColor() end)
                  
-                 ColorDisplay.MouseButton1Click:Connect(function()
-                    -- Expand color picker logic
+                 ColorButton.MouseButton1Click:Connect(function()
+                     expanded = not expanded
+                     if expanded then
+                         Tween(PickerFrame, {Size = UDim2.new(1, 0, 0, 140)}, 0.2)
+                     else
+                         Tween(PickerFrame, {Size = UDim2.new(1, 0, 0, 32)}, 0.2)
+                     end
                  end)
             end
 
@@ -927,8 +1070,9 @@ function Clarity:Notify(options)
     local NotifyFrame = Create("Frame", {
         Parent = container,
         BackgroundColor3 = Clarity.Settings.Theme.Main,
-        Size = UDim2.new(1, 0, 0, 0), -- Animated height
-        ClipsDescendants = true
+        Size = UDim2.new(1, 0, 0, 0), -- Start Height 0
+        ClipsDescendants = true,
+        BackgroundTransparency = 1 -- Start transparent
     })
     
     Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = NotifyFrame })
@@ -943,7 +1087,8 @@ function Clarity:Notify(options)
         Text = Title,
         TextColor3 = Clarity.Settings.Theme.Text,
         TextSize = 14,
-        TextXAlignment = Enum.TextXAlignment.Left
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTransparency = 1
     })
     
     local NotifyContent = Create("TextLabel", {
@@ -956,17 +1101,51 @@ function Clarity:Notify(options)
         TextColor3 = Clarity.Settings.Theme.TextDark,
         TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Left,
-        TextWrapped = true
+        TextWrapped = true,
+        TextTransparency = 1
     })
     
-    -- Animation
-    Tween(NotifyFrame, {Size = UDim2.new(1, 0, 0, 80)}, 0.3)
+    -- Animation In
+    Tween(NotifyFrame, {Size = UDim2.new(1, 0, 0, 80), BackgroundTransparency = 0}, 0.4)
+    Tween(NotifyTitle, {TextTransparency = 0}, 0.4)
+    Tween(NotifyContent, {TextTransparency = 0}, 0.4)
     
     task.delay(Duration, function()
-        Tween(NotifyFrame, {Size = UDim2.new(1, 0, 0, 0)}, 0.3).Completed:Connect(function()
+        -- Animation Out
+        Tween(NotifyTitle, {TextTransparency = 1}, 0.4)
+        Tween(NotifyContent, {TextTransparency = 1}, 0.4)
+        local t = Tween(NotifyFrame, {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1}, 0.4)
+        
+        t.Completed:Connect(function()
             NotifyFrame:Destroy()
         end)
     end)
+end
+
+function Clarity:SaveConfig(ConfigName)
+    if not isfolder("ClarityConfigs") then
+        makefolder("ClarityConfigs")
+    end
+    writefile("ClarityConfigs/" .. ConfigName .. ".json", HttpService:JSONEncode(Clarity.Config))
+    Clarity:Notify({Title = "Config", Content = "Saved config: " .. ConfigName, Duration = 3})
+end
+
+function Clarity:LoadConfig(ConfigName)
+    if isfile("ClarityConfigs/" .. ConfigName .. ".json") then
+        local success, decoded = pcall(function()
+            return HttpService:JSONDecode(readfile("ClarityConfigs/" .. ConfigName .. ".json"))
+        end)
+        if success then
+            Clarity.Config = decoded
+            Clarity:Notify({Title = "Config", Content = "Loaded config: " .. ConfigName, Duration = 3})
+            -- Note: To apply config visibly, UI often needs a refresh logic or checking config on creation.
+            -- With this system, creating the window AFTER loading config works best.
+        else
+             Clarity:Notify({Title = "Config", Content = "Failed to decode config", Duration = 3})
+        end
+    else
+        Clarity:Notify({Title = "Config", Content = "Config not found", Duration = 3})
+    end
 end
 
 return Clarity
