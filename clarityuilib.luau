@@ -101,6 +101,15 @@ function Clarity:CreateWindow(options)
     local windowName = options.Name or "Clarity UI"
     local configConfig = options.Configuration or {} 
     
+    -- Auto Destroy
+    if game.CoreGui:FindFirstChild("ClarityLib") then
+        game.CoreGui.ClarityLib:Destroy()
+    elseif LocalPlayer.PlayerGui:FindFirstChild("ClarityLib") then
+        LocalPlayer.PlayerGui.ClarityLib:Destroy()
+    end
+    if gethui and gethui():FindFirstChild("ClarityLib") then
+        gethui().ClarityLib:Destroy()
+    end
     -- Main ScreenGui
     local ScreenGui = Create("ScreenGui", {
         Name = "ClarityLib",
@@ -461,12 +470,13 @@ function Clarity:CreateWindow(options)
                     Parent = ToggleFrame,
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 0, 0, 0),
-                    Size = UDim2.new(0.8, 0, 1, 0),
+                    Size = UDim2.new(1, -50, 1, 0), -- Reduce width to avoid overlap
                     Font = Clarity.Settings.Font,
                     Text = toggleName,
                     TextColor3 = Clarity.Settings.Theme.Text,
                     TextSize = 13,
-                    TextXAlignment = Enum.TextXAlignment.Left
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd
                 })
 
                 local SwitchBg = Create("Frame", {
@@ -533,12 +543,13 @@ function Clarity:CreateWindow(options)
                 local Title = Create("TextLabel", {
                     Parent = SliderFrame,
                     BackgroundTransparency = 1,
-                    Size = UDim2.new(1, 0, 0, 20),
+                    Size = UDim2.new(1, -30, 0, 20), -- Reduce to avoid number overlap
                     Font = Clarity.Settings.Font,
                     Text = sliderName,
                     TextColor3 = Clarity.Settings.Theme.Text,
                     TextSize = 13,
-                    TextXAlignment = Enum.TextXAlignment.Left
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd
                 })
 
                 local ValueLabel = Create("TextLabel", {
@@ -718,12 +729,13 @@ function Clarity:CreateWindow(options)
                     Parent = MainBtn,
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 10, 0, 0),
-                    Size = UDim2.new(1, -30, 1, 0),
+                    Size = UDim2.new(1, -35, 1, 0), -- Better padding for icon
                     Font = Clarity.Settings.Font,
                     Text = multi and table.concat(selected, ", ") or selected,
                     TextColor3 = Clarity.Settings.Theme.Text,
                     TextSize = 13,
-                    TextXAlignment = Enum.TextXAlignment.Left
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd
                 })
                 
                 local Icon = Create("ImageLabel", {
@@ -845,12 +857,13 @@ function Clarity:CreateWindow(options)
                  local Title = Create("TextLabel", {
                      Parent = PickerFrame,
                      BackgroundTransparency = 1,
-                     Size = UDim2.new(0.6, 0, 0, 32),
+                     Size = UDim2.new(1, -50, 0, 32), -- Fix overlap with color button
                      Font = Clarity.Settings.Font,
                      Text = cpName,
                      TextColor3 = Clarity.Settings.Theme.Text,
                      TextSize = 13,
-                     TextXAlignment = Enum.TextXAlignment.Left
+                     TextXAlignment = Enum.TextXAlignment.Left,
+                     TextTruncate = Enum.TextTruncate.AtEnd
                  })
                  
                  local ColorButton = Create("TextButton", {
@@ -886,25 +899,27 @@ function Clarity:CreateWindow(options)
                      local SLabel = Create("TextLabel", {
                          Parent = SFrame,
                          BackgroundTransparency = 1,
-                         Size = UDim2.new(0, 20, 1, 0),
+                         Size = UDim2.new(0, 15, 1, 0),
                          Text = name,
-                         TextColor3 = Clarity.Settings.Theme.Text,
-                         Font = Clarity.Settings.Font,
-                         TextSize = 12
+                         TextColor3 = Clarity.Settings.Theme.TextDark,
+                         Font = Clarity.Settings.FontBold,
+                         TextSize = 12,
+                         TextXAlignment = Enum.TextXAlignment.Left
                      })
                      
                      local SBg = Create("Frame", {
                          Parent = SFrame,
-                         BackgroundColor3 = Color3.fromRGB(60,60,60),
+                         BackgroundColor3 = Color3.fromRGB(40, 40, 40),
                          BorderSizePixel = 0,
-                         Position = UDim2.new(0, 25, 0.5, -2),
-                         Size = UDim2.new(1, -30, 0, 4)
+                         Position = UDim2.new(0, 20, 0.5, -3),
+                         Size = UDim2.new(1, -25, 0, 6)
                      })
                      Create("UICorner", { CornerRadius = UDim.new(1,0), Parent = SBg })
+                     Create("UIStroke", { Parent = SBg, Color = Clarity.Settings.Theme.Stroke, Thickness = 1 })
                      
                      local SFill = Create("Frame", {
                          Parent = SBg,
-                         BackgroundColor3 = name == "R" and Color3.new(1,0.2,0.2) or (name == "G" and Color3.new(0.2,1,0.2) or Color3.new(0.2,0.2,1)),
+                         BackgroundColor3 = name == "R" and Color3.fromRGB(235, 87, 87) or (name == "G" and Color3.fromRGB(111, 207, 151) or Color3.fromRGB(86, 204, 242)),
                          BorderSizePixel = 0,
                          Size = UDim2.new(colorVal, 0, 1, 0)
                      })
