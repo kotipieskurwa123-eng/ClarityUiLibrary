@@ -46,7 +46,7 @@ local function Create(class, properties)
     return instance
 end
 
-local function MakeDraggable(gui)
+local function MakeDraggable(gui, header)
     local dragging
     local dragInput
     local dragStart
@@ -57,7 +57,7 @@ local function MakeDraggable(gui)
         gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 
-    gui.InputBegan:Connect(function(input)
+    header.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
@@ -71,7 +71,7 @@ local function MakeDraggable(gui)
         end
     end)
 
-    gui.InputChanged:Connect(function(input)
+    header.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
@@ -136,7 +136,7 @@ function Clarity:CreateWindow(options)
         Thickness = 1
     })
 
-    MakeDraggable(MainFrame)
+    -- Drag handle will be added after Sidebar is created
 
     -- Sidebar (Left)
     local Sidebar = Create("Frame", {
@@ -148,6 +148,8 @@ function Clarity:CreateWindow(options)
     })
     
     Create("UICorner", { CornerRadius = Clarity.Settings.CornerRadius, Parent = Sidebar })
+    
+    MakeDraggable(MainFrame, Sidebar)
     
     -- Fix Sidebar Corner (Right Side needs to be straight mostly, but we can just overlay)
     local SidebarCover = Create("Frame", {
